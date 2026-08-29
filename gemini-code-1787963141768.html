@@ -19,7 +19,7 @@
       overflow: hidden;
     }
 
-    /* --- タイトル画面スタイル --- */
+    /* タイトル画面 */
     #title-screen {
       text-align: center;
       display: flex;
@@ -30,26 +30,18 @@
       max-width: 600px;
       padding: 20px;
     }
-
     .title-logo {
       font-size: 3rem;
       font-weight: bold;
       color: #fff;
-      text-shadow: 
-        0 0 5px #fff,
-        0 0 10px #fff,
-        0 0 20px #ff007f,
-        0 0 30px #ff007f,
-        0 0 40px #ff007f;
+      text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #ff007f, 0 0 30px #ff007f;
       margin-bottom: 40px;
       animation: dropDown 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
-
     @keyframes dropDown {
       0% { transform: translateY(-200px); opacity: 0; }
       100% { transform: translateY(0); opacity: 1; }
     }
-
     .press-start {
       font-size: 1.2rem;
       color: #00f3ff;
@@ -58,12 +50,10 @@
       letter-spacing: 2px;
       animation: blink 1.2s infinite;
     }
-
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.2; }
     }
-
     .btn-neon {
       background: transparent;
       color: #00ff66;
@@ -77,16 +67,15 @@
       text-shadow: 0 0 5px #00ff66;
       transition: all 0.2s ease;
     }
-
     .btn-neon:hover {
       background: #00ff66;
       color: #05050a;
       box-shadow: 0 0 20px #00ff66, inset 0 0 20px #00ff66;
     }
 
-    /* --- 本編ゲーム画面スタイル --- */
+    /* 本編画面 */
     #game-container {
-      display: none; /* 最初は非表示 */
+      display: none;
       width: 100%;
       max-width: 600px;
       background-color: #16213e;
@@ -140,12 +129,12 @@
   <button class="btn-neon" id="start-btn">最初から</button>
 </div>
 
-<!-- 本編ゲーム画面 -->
+<!-- 本編画面 -->
 <div id="game-container">
   <div class="header">
     <div>主人公: <strong>荻田</strong></div>
     <div>HP: <span id="hp" class="status-val">100</span> / 100</div>
-    <div>所持金: <span id="gold" class="status-val">500</span> 円</div>
+    <div>現在地: <span id="location" style="color:#00f3ff; font-weight:bold;">はじまりの街</span></div>
   </div>
 
   <div id="screen">読み込み中...</div>
@@ -153,17 +142,13 @@
 </div>
 
 <script>
-  // --- オーディオ制御（Web Audio API） ---
   let audioCtx = null;
   let bgmInterval = null;
 
   function initAudio() {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
 
-  // ピコッ音
   function playSe() {
     initAudio();
     const osc = audioCtx.createOscillator();
@@ -179,7 +164,6 @@
     osc.stop(audioCtx.currentTime + 0.2);
   }
 
-  // BGM
   function startBgm() {
     if (bgmInterval) return;
     initAudio();
@@ -203,18 +187,18 @@
 
   window.addEventListener('click', () => { startBgm(); }, { once: true });
 
-  // --- ゲーム本編ロジック ---
+  // プレイヤー状態
   const state = {
     hp: 100,
     maxHp: 100,
-    gold: 500,
+    locationName: "はじまりの街",
     enemyHp: 0,
     enemyName: ""
   };
 
   function updateStatus() {
     document.getElementById('hp').textContent = state.hp;
-    document.getElementById('gold').textContent = state.gold;
+    document.getElementById('location').textContent = state.locationName;
   }
 
   function render(text, choices) {
@@ -235,74 +219,87 @@
     updateStatus();
   }
 
-  function sceneTown() {
+  // --- エリア移動システム ---
+
+  // エリア1: はじまりの街
+  function areaStartTown() {
+    state.locationName = "はじまりの街";
     render(
-      "【普通の街・駅前】<br>荻田はいつもの街の駅前にいる。どこへ行こうか？",
+      "【はじまりの街】<br>荻田の旅の出発点。穏やかな風が吹いている。",
       [
-        { text: "コンビニに行く", action: sceneConvenienceStore },
-        { text: "裏路地を探検する", action: startBattle },
-        { text: "ベンチで休む (HP回復)", action: rest },
-        { text: "街を散策する", action: sceneWalk }
+        { text: "宿屋で休む (HP回復)", action: restAtInn },
+        { text: "「暗い森」へ移動する", action: areaDarkForest },
+        { text: "「隣の港町」へ移動する", action: areaPortTown }
       ]
     );
   }
 
-  function sceneWalk() {
-    render(
-      "【商店街】<br>商店街を歩いていると、美味しそうな匂いがしてきた。平和な一日だ。",
-      [{ text: "駅前に戻る", action: sceneTown }]
-    );
-  }
-
-  function sceneConvenienceStore() {
-    render(
-      "【コンビニ】<br>店員「いらっしゃいませ！」エナジードリンク（200円）が売っている。",
-      [
-        { text: "ドリンクを買う (HP50回復)", action: buyDrink },
-        { text: "店を出る", action: sceneTown }
-      ]
-    );
-  }
-
-  function buyDrink() {
-    if (state.gold >= 200) {
-      state.gold -= 200;
-      state.hp = Math.min(state.maxHp, state.hp + 50);
-      render("荻田はエナジードリンクを飲んだ！HPが50回復した！", [
-        { text: "戻る", action: sceneConvenienceStore }
-      ]);
-    } else {
-      render("お金が足りないようだ…", [
-        { text: "戻る", action: sceneConvenienceStore }
-      ]);
-    }
-  }
-
-  function rest() {
+  function restAtInn() {
     state.hp = state.maxHp;
-    render("荻田はベンチで少し眠った。HPが全回復した！", [
-      { text: "起きる", action: sceneTown }
+    render("宿屋で一晩過ごした。HPが全回復した！", [
+      { text: "街に戻る", action: areaStartTown }
     ]);
   }
 
-  function startBattle() {
-    state.enemyName = "野良カラス";
-    state.enemyHp = 40;
-    battleTurn("凶暴な「野良カラス」が襲いかかってきた！");
+  // エリア2: 暗い森（バトルが発生するエリア）
+  function areaDarkForest() {
+    state.locationName = "暗い森";
+    render(
+      "【暗い森】<br>木々がうっそうと茂り、危険な雰囲気が漂っている…",
+      [
+        { text: "森の奥を探検する (バトル)", action: () => startBattle("森の野良犬", 35) },
+        { text: "「はじまりの街」へ戻る", action: areaStartTown },
+        { text: "「危険な山道」へ進む", action: areaMountain }
+      ]
+    );
+  }
+
+  // エリア3: 隣の港町
+  function areaPortTown() {
+    state.locationName = "隣の港町";
+    render(
+      "【隣の港町】<br>海風が心地よい賑やかな街。船がたくさん停まっている。",
+      [
+        { text: "「はじまりの街」へ戻る", action: areaStartTown },
+        { text: "港を探索する (バトル)", action: () => startBattle("海賊の手下", 50) }
+      ]
+    );
+  }
+
+  // エリア4: 危険な山道
+  function areaMountain() {
+    state.locationName = "危険な山道";
+    render(
+      "【危険な山道】<br>足場が悪い山道。強力な魔物が潜んでいそうだ。",
+      [
+        { text: "「暗い森」へ戻る", action: areaDarkForest },
+        { text: "頂上を目指す (ボスバトル)", action: () => startBattle("山の主（大グマ）", 80) }
+      ]
+    );
+  }
+
+  // --- バトルシステム ---
+  function startBattle(enemyName, enemyHp) {
+    state.enemyName = enemyName;
+    state.enemyHp = enemyHp;
+    battleTurn(`危険な敵「${enemyName}」が現れた！`);
   }
 
   function battleTurn(message) {
     if (state.enemyHp <= 0) {
-      state.gold += 300;
-      render(`【勝利！】<br>${state.enemyName}を撃退した！<br>300円を手に入れた！`, [
-        { text: "街に戻る", action: sceneTown }
+      render(`【勝利！】<br>${state.enemyName}を倒した！`, [
+        { text: "探索を続ける", action: () => {
+          if (state.locationName === "暗い森") areaDarkForest();
+          else if (state.locationName === "隣の港町") areaPortTown();
+          else if (state.locationName === "危険な山道") areaMountain();
+        }}
       ]);
       return;
     }
 
     if (state.hp <= 0) {
-      render("【ゲームオーバー】<br>荻田は倒れてしまった…", [
-        { text: "タイトルへ戻る", action: () => location.reload() }
+      render("【ゲームオーバー】<br>荻田は力尽きてしまった…", [
+        { text: "タイトルに戻る", action: () => location.reload() }
       ]);
       return;
     }
@@ -310,46 +307,37 @@
     render(
       `【バトル】${message}<br><br>相手: ${state.enemyName} (HP: ${state.enemyHp})`,
       [
-        { text: "攻撃（パンチ）", action: () => playerAttack("punch") },
-        { text: "荻田のキック", action: () => playerAttack("kick") },
-        { text: "説得してみる", action: () => playerAttack("talk") },
-        { text: "逃げる", action: sceneTown }
+        { text: "攻撃", action: () => playerAttack("punch") },
+        { text: "必殺技", action: () => playerAttack("special") },
+        { text: "逃げる", action: () => {
+          if (state.locationName === "暗い森") areaDarkForest();
+          else if (state.locationName === "隣の港町") areaPortTown();
+          else if (state.locationName === "危険な山道") areaMountain();
+        }}
       ]
     );
   }
 
   function playerAttack(type) {
-    let damage = 0;
-    let msg = "";
-
-    if (type === "punch") {
-      damage = 12;
-      msg = "荻田のジャブが命中！12のダメージ！";
-    } else if (type === "kick") {
-      damage = 20;
-      msg = "荻田の渾身のキック！20のダメージ！";
-    } else if (type === "talk") {
-      damage = 5;
-      msg = "荻田は熱く語りかけた！相手は少し困惑して5のダメージ！";
-    }
-
+    let damage = type === "special" ? 25 : 15;
+    let msg = `荻田の${type === "special" ? "必殺技" : "攻撃"}！ ${damage}のダメージ！`;
     state.enemyHp -= damage;
 
     if (state.enemyHp > 0) {
-      const enemyDamage = Math.floor(Math.random() * 10) + 5;
+      const enemyDamage = Math.floor(Math.random() * 8) + 6;
       state.hp -= enemyDamage;
-      msg += `<br>野良カラスのつつく攻撃！荻田は${enemyDamage}のダメージを受けた！`;
+      msg += `<br>相手の反撃！荻田は${enemyDamage}のダメージを受けた！`;
     }
 
     battleTurn(msg);
   }
 
-  // --- スタートボタンの処理 ---
+  // スタート処理
   document.getElementById('start-btn').addEventListener('click', () => {
     playSe();
     document.getElementById('title-screen').style.display = 'none';
     document.getElementById('game-container').style.display = 'block';
-    sceneTown();
+    areaStartTown();
   });
 </script>
 
