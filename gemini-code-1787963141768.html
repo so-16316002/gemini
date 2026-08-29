@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 - 3D戦闘（手前左＆奥右）版</title>
+  <title>荻田の大冒険 - 写真画像対応版</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -57,7 +56,6 @@
       margin-bottom: 10px;
     }
 
-    /* 3D戦闘画面オーバーレイ */
     #battle-overlay {
       display: none;
       position: absolute;
@@ -142,7 +140,6 @@
 
   <canvas id="map-canvas" width="384" height="384"></canvas>
 
-  <!-- 3D戦闘画面 -->
   <div id="battle-overlay">
     <canvas id="battle-canvas" width="420" height="200"></canvas>
 
@@ -177,6 +174,22 @@
 </div>
 
 <script>
+  // --- 画像ファイルの読み込み設定 ---
+  const images = {};
+
+  function loadImage(key, src) {
+    const img = new Image();
+    img.src = src;
+    images[key] = { img: img, loaded: false };
+    img.onload = () => { images[key].loaded = true; };
+  }
+
+  // hero.png の名前に変更した写真をフォルダ内に置いてください
+  loadImage('hero', 'hero.png');
+  loadImage('slime', 'slime.png');
+  loadImage('guard', 'guard.png');
+  loadImage('katsuta', 'katsuta.png');
+
   const canvas = document.getElementById('map-canvas');
   const ctx = canvas.getContext('2d');
   const bCanvas = document.getElementById('battle-canvas');
@@ -198,7 +211,6 @@
   let currentEnemyPos = null;
   let isTurnProcessing = false;
 
-  // アニメーション用変数
   let heroAnimOffset = { x: 0, y: 0 };
   let animFrameId = null;
 
@@ -215,10 +227,10 @@
     })
   );
 
-  map[26][17] = 2;   // 村人
-  map[20][5] = 3;    // 中ボス（西）
-  map[20][25] = 4;   // 思い出（東）
-  map[3][15] = 5;    // 勝田（北）
+  map[26][17] = 2;
+  map[20][5] = 3;
+  map[20][25] = 4;
+  map[3][15] = 5;
 
   map[24][13] = 6;
   map[22][16] = 6;
@@ -296,11 +308,11 @@
     const dialog = document.getElementById('dialog');
 
     if (type === 2) {
-      dialog.innerHTML = "<strong>村人:</strong><br>「3Dバトルでは手前左が自分、奥右が敵だ！コマンドで攻略しよう。」";
+      dialog.innerHTML = "<strong>村人:</strong><br>「荻田の写真が円形に繰り抜かれて戦闘画面に登場するぞ！」";
     } else if (type === 6) {
-      startBattle("野良スライム", 1, 15, 4, 20, 15, "#4caf50", x, y);
+      startBattle("野良スライム", 1, 15, 4, 20, 15, "#4caf50", 'slime', x, y);
     } else if (type === 3) {
-      startBattle("地図持ちガード", 3, 40, 8, 100, 50, "#e53935", x, y, true);
+      startBattle("地図持ちガード", 3, 40, 8, 100, 50, "#e53935", 'guard', x, y, true);
     } else if (type === 4) {
       if (!state.hasMap) {
         dialog.innerHTML = "<strong>システム:</strong><br>地図がないため、まだ進めない…";
@@ -312,16 +324,16 @@
       if (!state.visitedHome) {
         dialog.innerHTML = "<strong>勝田:</strong><br>「己の原点を見つめ直してこい。」";
       } else {
-        startBattle("師匠・勝田", 5, 80, 12, 0, 200, "#ff1744", x, y, false, true);
+        startBattle("師匠・勝田", 5, 80, 12, 0, 200, "#ff1744", 'katsuta', x, y, false, true);
       }
     }
   }
 
-  // --- 3D 擬似レンダリング処理 ---
+  // --- 3D 描画処理（写真の切り抜き対応） ---
   function render3DBattle() {
     bCtx.clearRect(0, 0, bCanvas.width, bCanvas.height);
 
-    // 背景（グラデーション＆グリッド床）
+    // 背景描画
     const grad = bCtx.createLinearGradient(0, 0, 0, bCanvas.height);
     grad.addColorStop(0, '#0f172a');
     grad.addColorStop(0.5, '#1e293b');
@@ -329,7 +341,7 @@
     bCtx.fillStyle = grad;
     bCtx.fillRect(0, 0, bCanvas.width, bCanvas.height);
 
-    // 遠近グリッド床
+    // グリッド床描画
     bCtx.strokeStyle = 'rgba(0, 243, 255, 0.15)';
     bCtx.lineWidth = 1;
     const vanishY = 70;
@@ -346,52 +358,68 @@
       bCtx.stroke();
     }
 
-    // 1. 奥右：敵（小さめ・奥の配置）
+    // 1. 奥右：敵キャラ描画
     const enemyX = 290;
     const enemyY = 85;
-    const enemySize = 42;
+    const enemySize = 54;
 
-    // 敵の影
     bCtx.fillStyle = 'rgba(0,0,0,0.5)';
     bCtx.beginPath();
-    bCtx.ellipse(enemyX, enemyY + enemySize, enemySize * 0.7, enemySize * 0.25, 0, 0, Math.PI * 2);
+    bCtx.ellipse(enemyX, enemyY + enemySize / 2, enemySize * 0.6, enemySize * 0.2, 0, 0, Math.PI * 2);
     bCtx.fill();
 
-    // 敵本体
-    bCtx.fillStyle = currentEnemy ? currentEnemy.color : '#ff0055';
-    bCtx.fillRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
-    bCtx.strokeStyle = '#ffffff';
-    bCtx.lineWidth = 2;
-    bCtx.strokeRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
+    const enemyImgData = images[currentEnemy ? currentEnemy.imgKey : ''];
+    if (enemyImgData && enemyImgData.loaded) {
+      bCtx.drawImage(enemyImgData.img, enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
+    } else {
+      bCtx.fillStyle = currentEnemy ? currentEnemy.color : '#ff0055';
+      bCtx.fillRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
+      bCtx.strokeStyle = '#ffffff';
+      bCtx.lineWidth = 2;
+      bCtx.strokeRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
+    }
 
-    // 2. 手前左：主人公（大きめ・手前の配置）
+    // 2. 手前左：主人公（荻田の写真・丸型くり抜き描画）
     const heroX = 110 + heroAnimOffset.x;
-    const heroY = 145 + heroAnimOffset.y;
-    const heroSize = 58;
+    const heroY = 135 + heroAnimOffset.y;
+    const heroSize = 72;
 
-    // 主人公の影
     bCtx.fillStyle = 'rgba(0,0,0,0.5)';
     bCtx.beginPath();
-    bCtx.ellipse(110, 145 + heroSize, heroSize * 0.7, heroSize * 0.25, 0, 0, Math.PI * 2);
+    bCtx.ellipse(110, 135 + heroSize / 2, heroSize * 0.6, heroSize * 0.2, 0, 0, Math.PI * 2);
     bCtx.fill();
 
-    // 主人公本体（荻田）
-    bCtx.fillStyle = '#00f3ff';
-    bCtx.fillRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
-    bCtx.strokeStyle = '#ffffff';
-    bCtx.lineWidth = 2;
-    bCtx.strokeRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+    const heroImgData = images['hero'];
+    if (heroImgData && heroImgData.loaded) {
+      bCtx.save();
+      
+      // 円形パスで写真をくり抜く
+      bCtx.beginPath();
+      bCtx.arc(heroX, heroY, heroSize / 2, 0, Math.PI * 2, true);
+      bCtx.closePath();
+      bCtx.clip();
 
-    // 目（奥右を向く視線）
-    bCtx.fillStyle = '#000';
-    bCtx.fillRect(heroX + 8, heroY - 12, 6, 12);
-    bCtx.fillRect(heroX + 20, heroY - 12, 6, 12);
+      bCtx.drawImage(heroImgData.img, heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+      
+      // 青く光る外枠
+      bCtx.strokeStyle = '#00f3ff';
+      bCtx.lineWidth = 3;
+      bCtx.stroke();
+
+      bCtx.restore();
+    } else {
+      bCtx.fillStyle = '#00f3ff';
+      bCtx.fillRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+      bCtx.strokeStyle = '#ffffff';
+      bCtx.lineWidth = 2;
+      bCtx.strokeRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+    }
 
     animFrameId = requestAnimationFrame(render3DBattle);
   }
 
-  function startBattle(name, lv, hp, atk, rewardGold, rewardExp, color, x, y, isBoss = false, isFinal = false) {
-    currentEnemy = { name, lv, hp, maxHp: hp, atk, rewardGold, rewardExp, color, isBoss, isFinal };
+  function startBattle(name, lv, hp, atk, rewardGold, rewardExp, color, imgKey, x, y, isBoss = false, isFinal = false) {
+    currentEnemy = { name, lv, hp, maxHp: hp, atk, rewardGold, rewardExp, color, imgKey, isBoss, isFinal };
     currentEnemyPos = { x, y };
     isTurnProcessing = false;
     heroAnimOffset = { x: 0, y: 0 };
@@ -407,17 +435,14 @@
     render3DBattle();
   }
 
-  // 攻撃時の踏み込みアニメーション
   function playAttackAnimation(callback) {
     let step = 0;
     const interval = setInterval(() => {
       step++;
       if (step <= 5) {
-        // 奥右方向へ移動
         heroAnimOffset.x += 18;
         heroAnimOffset.y -= 7;
       } else if (step <= 10) {
-        // 戻る
         heroAnimOffset.x -= 18;
         heroAnimOffset.y += 7;
       } else {
