@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 自由移動</title>
+  <title>荻田の大冒険 - イベントシステム</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -19,53 +19,7 @@
       overflow: hidden;
     }
 
-    /* タイトル画面 */
-    #title-screen {
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      max-width: 500px;
-    }
-    .title-logo {
-      font-size: 3rem;
-      font-weight: bold;
-      color: #fff;
-      text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #ff007f, 0 0 30px #ff007f;
-      margin-bottom: 40px;
-      animation: dropDown 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-    }
-    @keyframes dropDown {
-      0% { transform: translateY(-200px); opacity: 0; }
-      100% { transform: translateY(0); opacity: 1; }
-    }
-    .press-start {
-      font-size: 1.2rem;
-      color: #00f3ff;
-      text-shadow: 0 0 8px #00f3ff;
-      margin-bottom: 30px;
-      letter-spacing: 2px;
-      animation: blink 1.2s infinite;
-    }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-    .btn-neon {
-      background: transparent;
-      color: #00ff66;
-      font-size: 1.2rem;
-      font-weight: bold;
-      padding: 14px 40px;
-      border: 2px solid #00ff66;
-      border-radius: 8px;
-      cursor: pointer;
-      box-shadow: 0 0 10px #00ff66, inset 0 0 10px #00ff66;
-      text-shadow: 0 0 5px #00ff66;
-    }
-
-    /* 本編画面 */
     #game-container {
-      display: none;
       width: 100%;
       max-width: 480px;
       background-color: #16213e;
@@ -82,7 +36,7 @@
     }
     
     #map-canvas {
-      background-color: #2e7d32;
+      background-color: #388e3c;
       border: 2px solid #00f3ff;
       border-radius: 8px;
       display: block;
@@ -90,14 +44,15 @@
       image-rendering: pixelated;
     }
 
+    /* 会話ウィンドウ */
     #dialog {
       background-color: #0f3460;
       border: 2px solid #00f3ff;
       border-radius: 8px;
-      padding: 10px;
-      min-height: 60px;
-      font-size: 0.85rem;
-      line-height: 1.4;
+      padding: 10px 15px;
+      min-height: 80px;
+      font-size: 0.9rem;
+      line-height: 1.5;
       margin-bottom: 10px;
     }
 
@@ -124,23 +79,15 @@
 </head>
 <body>
 
-<!-- タイトル画面 -->
-<div id="title-screen">
-  <div class="title-logo">荻田の大冒険</div>
-  <div class="press-start">- PRESS START -</div>
-  <button class="btn-neon" id="start-btn">最初から</button>
-</div>
-
-<!-- 本編画面 -->
 <div id="game-container">
   <div class="header">
     <div>主人公: <strong>荻田</strong></div>
-    <div>ミッション: <span id="mission-count" style="color:#00ff66; font-weight:bold;">0</span> / 3</div>
+    <div>所持金: <span id="gold-val" style="color:#ffd700; font-weight:bold;">0</span> G</div>
   </div>
 
-  <canvas id="map-canvas" width="320" height="320"></canvas>
+  <canvas id="map-canvas" width="384" height="384"></canvas>
 
-  <div id="dialog">広大なフィールドを自由に駆け回ろう！</div>
+  <div id="dialog">【始まりの地】<br>まずは近くの村人やモンスターに近づいてみよう。</div>
 
   <div class="controls">
     <div class="empty"></div>
@@ -156,63 +103,41 @@
 </div>
 
 <script>
-  let audioCtx = null;
-  function initAudio() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  function playSe() {
-    initAudio();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-    osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.05);
-    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.1);
-  }
-
   const canvas = document.getElementById('map-canvas');
   const ctx = canvas.getContext('2d');
   const tileSize = 32;
 
-  // 広大なマップ設定（20×20マス）
-  const mapWidth = 20;
-  const mapHeight = 20;
+  const mapWidth = 30;
+  const mapHeight = 30;
+  const viewGrid = 12;
 
-  // 画面に表示するマス数（10×10）
-  const viewGrid = 10;
+  const player = { x: 5, y: 5 };
+  let gold = 0;
 
-  // プレイヤー初期位置（マップの中央付近）
-  const player = { x: 10, y: 10 };
-  let clearedMissions = 0;
+  // フラグ管理
+  const state = {
+    hasMap: false,       // 地図を持っているか
+    visitedHome: false,  // 故郷の村を調べたか
+    defeatedKatsuta: false // 勝田を倒したか
+  };
 
-  // 20x20のマップ（ほぼ道・広場）
-  // 0:道, 1:外枠の壁, 2:M1, 3:M2, 4:M3, 5:ゴール, 6:装飾用の木
+  // 0:平地, 1:壁, 2:村人, 3:地図持ちモンスター, 4:思い出の品, 5:師匠・勝田
   const map = Array.from({ length: mapHeight }, (_, r) =>
     Array.from({ length: mapWidth }, (_, c) => {
-      if (r === 0 || r === mapHeight - 1 || c === 0 || c === mapWidth - 1) return 1; // 外枠の壁
-      return 0; // 基本はすべて自由に歩ける地面
+      if (r === 0 || r === mapHeight - 1 || c === 0 || c === mapWidth - 1) return 1;
+      return 0;
     })
   );
 
-  // マップ上の各所にイベントと木（障害物）を配置
-  map[3][5] = 2;   // ミッション1
-  map[15][4] = 3;  // ミッション2
-  map[6][16] = 4;  // ミッション3
-  map[16][16] = 5; // ゴール
-
-  // 点々と木を配置（迷路にはせず広場風にする）
-  const treePositions = [[5,5], [5,6], [12,8], [8,12], [14,12], [4,14]];
-  treePositions.forEach(([r, c]) => map[r][c] = 6);
+  // イベントオブジェクトの配置
+  map[5][7] = 2;    // 村人（始まりの地）
+  map[8][10] = 3;   // 地図を持った敵（中ボス）
+  map[15][15] = 4;  // 故郷の村（思い出の品）
+  map[25][25] = 5;  // 別れの地（師匠・勝田）
 
   function drawMap() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // カメラのオフセット計算（プレイヤーが画面の中央「5, 5」に映るように描画位置をずらす）
     const offsetX = player.x - Math.floor(viewGrid / 2);
     const offsetY = player.y - Math.floor(viewGrid / 2);
 
@@ -220,11 +145,9 @@
       for (let c = 0; c < viewGrid; c++) {
         const mapX = offsetX + c;
         const mapY = offsetY + r;
-
         const screenX = c * tileSize;
         const screenY = r * tileSize;
 
-        // マップ範囲外の描写（エリア外）
         if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
           ctx.fillStyle = '#05050a';
           ctx.fillRect(screenX, screenY, tileSize, tileSize);
@@ -233,97 +156,92 @@
 
         const type = map[mapY][mapX];
 
-        // 地面タイル（グリッドの模様）
-        ctx.fillStyle = (mapX + mapY) % 2 === 0 ? '#2e7d32' : '#286e2c';
+        // 地面
+        ctx.fillStyle = '#388e3c';
         ctx.fillRect(screenX, screenY, tileSize, tileSize);
 
         if (type === 1) {
-          // 外枠エリア
-          ctx.fillStyle = '#0f3460';
+          ctx.fillStyle = '#1b5e20'; // 外壁
           ctx.fillRect(screenX, screenY, tileSize, tileSize);
-        } else if (type === 6) {
-          // シンボルツリー
-          ctx.fillStyle = '#1b5e20';
+        } else if (type === 2) {
+          ctx.fillStyle = '#ffb74d'; // 村人（オレンジ）
           ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
-        } else if (type >= 2 && type <= 4) {
-          // ミッション宝球
-          ctx.fillStyle = '#ffd700';
-          ctx.beginPath();
-          ctx.arc(screenX + 16, screenY + 16, 8, 0, Math.PI * 2);
-          ctx.fill();
+        } else if (type === 3) {
+          ctx.fillStyle = '#e53935'; // 地図持ちモンスター（赤）
+          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
+        } else if (type === 4) {
+          ctx.fillStyle = '#ba68c8'; // 思い出の品（紫）
+          ctx.fillRect(screenX + 6, screenY + 6, tileSize - 12, tileSize - 12);
         } else if (type === 5) {
-          // ゴール
-          ctx.fillStyle = '#e94560';
-          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
+          ctx.fillStyle = '#ff1744'; // 勝田（濃い赤）
+          ctx.fillRect(screenX + 2, screenY + 2, tileSize - 4, tileSize - 4);
         }
       }
     }
 
-    // プレイヤー（常に画面真ん中：5*32px = 160px の位置に描画）
+    // プレイヤー（荻田）
     const centerPos = Math.floor(viewGrid / 2) * tileSize;
     ctx.fillStyle = '#00f3ff';
     ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(centerPos + 10, centerPos + 10, 4, 4);
-    ctx.fillRect(centerPos + 18, centerPos + 10, 4, 4);
   }
 
   function movePlayer(dx, dy) {
     const newX = player.x + dx;
     const newY = player.y + dy;
 
-    // 外枠壁（1）と 木（6） 以外は自由に歩ける
-    if (map[newY][newX] !== 1 && map[newY][newX] !== 6) {
+    // 壁(1)以外、かつイベントキャラに重ならないように移動
+    const target = map[newY][newX];
+    if (target === 0) {
       player.x = newX;
       player.y = newY;
-      playSe();
-      checkEvent(newX, newY);
+    } else {
+      // キャラやオブジェクトに接触したらイベント発生
+      triggerEvent(target, newX, newY);
     }
     drawMap();
   }
 
-  function checkEvent(x, y) {
+  function triggerEvent(type, x, y) {
     const dialog = document.getElementById('dialog');
-    const target = map[y][x];
 
-    if (target === 2) {
-      map[y][x] = 0;
-      clearedMissions++;
-      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション1完了】</span><br>北西の草原で『黄金の鍵』を発見！";
-    } else if (target === 3) {
-      map[y][x] = 0;
-      clearedMissions++;
-      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション2完了】</span><br>南西の広場で『秘伝の書』を獲得！";
-    } else if (target === 4) {
-      map[y][x] = 0;
-      clearedMissions++;
-      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション3完了】</span><br>東の森で『長老の証』を入手！";
-    } else if (target === 5) {
-      if (clearedMissions >= 3) {
-        dialog.innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>広い世界を駆け巡り、すべての冒険を達成した！";
+    if (type === 2) {
+      // 村人との会話
+      dialog.innerHTML = "<strong>村人:</strong><br>「東に強い魔物がいるらしい。地図を持っていれば故郷の村へ行けるのだが…」";
+    } else if (type === 3) {
+      // 地図持ちモンスター
+      state.hasMap = true;
+      map[y][x] = 0; // 倒して消滅
+      gold += 100;
+      document.getElementById('gold-val').textContent = gold;
+      dialog.innerHTML = "<span style='color:#ffd700;'>【強敵撃破！】</span><br>100Gと『故郷への地図』を入手した！南東の故郷の村へ進めるようになった。";
+    } else if (type === 4) {
+      // 故郷の村（思い出の品）
+      if (!state.hasMap) {
+        dialog.innerHTML = "<strong>システム:</strong><br>地図がないため、まだ進めない…";
       } else {
-        dialog.innerHTML = "南東の遺跡の扉は閉じられている…<br>フィールドに散らばる3つの宝を集めよう！";
+        state.visitedHome = true;
+        dialog.innerHTML = "<span style='color:#ba68c8;'>【故郷の思い出】</span><br>かつて師匠・勝田と修行した木刀を発見した…『勝田は最果ての地で待つ』と刻まれている！";
       }
-    } else {
-      dialog.innerText = `現在地: (${x}, ${y}) - フィールドを自由に探索中…`;
+    } else if (type === 5) {
+      // 勝田（ラストボス）
+      if (!state.visitedHome) {
+        dialog.innerHTML = "<strong>勝田:</strong><br>「まだ来るときではない…故郷で己の原点を見つめ直してこい。」";
+      } else {
+        state.defeatedKatsuta = true;
+        map[y][x] = 0;
+        dialog.innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>かつての師匠・勝田との死闘を制した！荻田の旅は幕を閉じた。";
+      }
     }
-    document.getElementById('mission-count').textContent = clearedMissions;
   }
 
   window.addEventListener('keydown', (e) => {
-    if (document.getElementById('game-container').style.display === 'block') {
-      if (e.key === 'ArrowUp' || e.key === 'w') movePlayer(0, -1);
-      if (e.key === 'ArrowDown' || e.key === 's') movePlayer(0, 1);
-      if (e.key === 'ArrowLeft' || e.key === 'a') movePlayer(-1, 0);
-      if (e.key === 'ArrowRight' || e.key === 'd') movePlayer(1, 0);
-    }
+    if (e.key === 'ArrowUp' || e.key === 'w') movePlayer(0, -1);
+    if (e.key === 'ArrowDown' || e.key === 's') movePlayer(0, 1);
+    if (e.key === 'ArrowLeft' || e.key === 'a') movePlayer(-1, 0);
+    if (e.key === 'ArrowRight' || e.key === 'd') movePlayer(1, 0);
   });
 
-  document.getElementById('start-btn').addEventListener('click', () => {
-    document.getElementById('title-screen').style.display = 'none';
-    document.getElementById('game-container').style.display = 'block';
-    drawMap();
-  });
+  drawMap();
 </script>
 
 </body>
