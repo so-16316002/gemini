@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>荻田の冒険 - Ogita's Adventure</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: #1a1a2e;
+      color: #e0e0e0;
+      font-family: 'Hiragino Kaku Gothic ProN', 'メイリオ', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    #game-container {
+      width: 100%;
+      max-width: 600px;
+      background-color: #16213e;
+      border: 3px solid #0f3460;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 2px solid #0f3460;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+    }
+    .status-val { font-weight: bold; color: #e94560; }
+    #screen {
+      background-color: #0f3460;
+      border-radius: 8px;
+      padding: 15px;
+      min-height: 140px;
+      margin-bottom: 15px;
+      line-height: 1.6;
+      font-size: 0.95rem;
+    }
+    .choices-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    button {
+      background-color: #e94560;
+      color: #fff;
+      border: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    button:hover { background-color: #ff6b81; }
+    button:disabled { background-color: #555; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <div class="header">
+    <div>主人公: <strong>荻田</strong></div>
+    <div>HP: <span id="hp" class="status-val">100</span> / 100</div>
+    <div>所持金: <span id="gold" class="status-val">500</span> 円</div>
+  </div>
+
+  <div id="screen">
+    ゲームを読み込んでいます...
+  </div>
+
+  <div id="choices" class="choices-grid"></div>
+</div>
+
+<script>
+  // ゲームの状態管理
+  const state = {
+    hp: 100,
+    maxHp: 100,
+    gold: 500,
+    inBattle: false,
+    enemyHp: 0,
+    enemyName: ""
+  };
+
+  // 画面の更新
+  function updateStatus() {
+    document.getElementById('hp').textContent = state.hp;
+    document.getElementById('gold').textContent = state.gold;
+  }
+
+  // テキストと選択肢の表示処理
+  function render(text, choices) {
+    document.getElementById('screen').innerHTML = text;
+    const choicesContainer = document.getElementById('choices');
+    choicesContainer.innerHTML = '';
+    
+    choices.forEach(c => {
+      const btn = document.createElement('button');
+      btn.textContent = c.text;
+      btn.onclick = c.action;
+      choicesContainer.appendChild(btn);
+    });
+    updateStatus();
+  }
+
+  // --- シーン定義 ---
+
+  function sceneTown() {
+    state.inBattle = false;
+    render(
+      "【普通の街・駅前】<br>荻田はいつもの街の駅前にいる。どこへ行こうか？",
+      [
+        { text: "コンビニに行く", action: sceneConvenienceStore },
+        { text: "裏路地を探検する", action: startBattle },
+        { text: "ベンチで休む (HP回復)", action: rest },
+        { text: "街を散策する", action: sceneWalk }
+      ]
+    );
+  }
+
+  function sceneWalk() {
+    render(
+      "【商店街】<br>商店街を歩いていると、美味しそうな匂いがしてきた。平和な一日だ。",
+      [
+        { text: "駅前に戻る", action: sceneTown }
+      ]
+    );
+  }
+
+  function sceneConvenienceStore() {
+    render(
+      "【コンビニ】<br>店員「いらっしゃいませ！」エナジードリンク（200円）が売っている。",
+      [
+        { text: "ドリンクを買う (HP50回復)", action: buyDrink },
+        { text: "店を出る", action: sceneTown }
+      ]
+    );
+  }
+
+  function buyDrink() {
+    if (state.gold >= 200) {
+      state.gold -= 200;
+      state.hp = Math.min(state.maxHp, state.hp + 50);
+      render("荻田はエナジードリンクを飲んだ！HPが50回復した！", [
+        { text: "戻る", action: sceneConvenienceStore }
+      ]);
+    } else {
+      render("お金が足りないようだ…", [
+        { text: "戻る", action: sceneConvenienceStore }
+      ]);
+    }
+  }
+
+  function rest() {
+    state.hp = state.maxHp;
+    render("荻田はベンチで少し眠った。HPが全回復した！", [
+      { text: "起きる", action: sceneTown }
+    ]);
+  }
+
+  // --- バトルシステム ---
+
+  function startBattle() {
+    state.inBattle = true;
+    state.enemyName = "野良カラス";
+    state.enemyHp = 40;
+    battleTurn("凶暴な「野良カラス」が襲いかかってきた！");
+  }
+
+  function battleTurn(message) {
+    if (state.enemyHp <= 0) {
+      state.gold += 300;
+      render(`【勝利！】<br>${state.enemyName}を撃退した！<br>300円を手に入れた！`, [
+        { text: "街に戻る", action: sceneTown }
+      ]);
+      return;
+    }
+
+    if (state.hp <= 0) {
+      render("【ゲームオーバー】<br>荻田は倒れてしまった…", [
+        { text: "やり直す", action: () => { state.hp = 100; state.gold = 500; sceneTown(); } }
+      ]);
+      return;
+    }
+
+    render(
+      `【バトル】${message}<br><br>相手: ${state.enemyName} (HP: ${state.enemyHp})`,
+      [
+        { text: "攻撃（パンチ）", action: () => playerAttack("punch") },
+        { text: "荻田のキック", action: () => playerAttack("kick") },
+        { text: "説得してみる", action: () => playerAttack("talk") },
+        { text: "逃げる", action: sceneTown }
+      ]
+    );
+  }
+
+  function playerAttack(type) {
+    let damage = 0;
+    let msg = "";
+
+    if (type === "punch") {
+      damage = 12;
+      msg = "荻田のジャブが命中！12のダメージ！";
+    } else if (type === "kick") {
+      damage = 20;
+      msg = "荻田の渾身のキック！20のダメージ！";
+    } else if (type === "talk") {
+      damage = 5;
+      msg = "荻田は熱く語りかけた！相手は少し困惑して5のダメージ！";
+    }
+
+    state.enemyHp -= damage;
+
+    if (state.enemyHp > 0) {
+      // 敵の反撃
+      const enemyDamage = Math.floor(Math.random() * 10) + 5;
+      state.hp -= enemyDamage;
+      msg += `<br>野良カラスのつつく攻撃！荻田は${enemyDamage}のダメージを受けた！`;
+    }
+
+    battleTurn(msg);
+  }
+
+  // ゲームスタート
+  sceneTown();
+</script>
+
+</body>
+</html>
