@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 2D</title>
+  <title>荻田の大冒険 自由移動</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -140,7 +140,7 @@
 
   <canvas id="map-canvas" width="320" height="320"></canvas>
 
-  <div id="dialog">矢印キー または 下のボタンで荻田を動かそう！</div>
+  <div id="dialog">広大なフィールドを自由に駆け回ろう！</div>
 
   <div class="controls">
     <div class="empty"></div>
@@ -178,65 +178,102 @@
   const canvas = document.getElementById('map-canvas');
   const ctx = canvas.getContext('2d');
   const tileSize = 32;
-  const gridCount = 10;
 
-  const player = { x: 1, y: 1 };
+  // 広大なマップ設定（20×20マス）
+  const mapWidth = 20;
+  const mapHeight = 20;
+
+  // 画面に表示するマス数（10×10）
+  const viewGrid = 10;
+
+  // プレイヤー初期位置（マップの中央付近）
+  const player = { x: 10, y: 10 };
   let clearedMissions = 0;
 
-  // 0:道, 1:木/障害物, 2:M1, 3:M2, 4:M3, 5:ゴール
-  const map = [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 1, 2, 0, 0, 0, 1],
-    [1, 0, 1, 0, 1, 1, 1, 1, 0, 1],
-    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
-    [1, 0, 1, 1, 1, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 3, 0, 1, 1, 0, 1],
-    [1, 1, 1, 0, 1, 0, 1, 4, 0, 1],
-    [1, 0, 0, 0, 1, 0, 1, 1, 0, 1],
-    [1, 0, 1, 0, 0, 0, 0, 0, 5, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-  ];
+  // 20x20のマップ（ほぼ道・広場）
+  // 0:道, 1:外枠の壁, 2:M1, 3:M2, 4:M3, 5:ゴール, 6:装飾用の木
+  const map = Array.from({ length: mapHeight }, (_, r) =>
+    Array.from({ length: mapWidth }, (_, c) => {
+      if (r === 0 || r === mapHeight - 1 || c === 0 || c === mapWidth - 1) return 1; // 外枠の壁
+      return 0; // 基本はすべて自由に歩ける地面
+    })
+  );
+
+  // マップ上の各所にイベントと木（障害物）を配置
+  map[3][5] = 2;   // ミッション1
+  map[15][4] = 3;  // ミッション2
+  map[6][16] = 4;  // ミッション3
+  map[16][16] = 5; // ゴール
+
+  // 点々と木を配置（迷路にはせず広場風にする）
+  const treePositions = [[5,5], [5,6], [12,8], [8,12], [14,12], [4,14]];
+  treePositions.forEach(([r, c]) => map[r][c] = 6);
 
   function drawMap() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    for (let r = 0; r < gridCount; r++) {
-      for (let c = 0; c < gridCount; c++) {
-        const type = map[r][c];
-        const x = c * tileSize;
-        const y = r * tileSize;
+    // カメラのオフセット計算（プレイヤーが画面の中央「5, 5」に映るように描画位置をずらす）
+    const offsetX = player.x - Math.floor(viewGrid / 2);
+    const offsetY = player.y - Math.floor(viewGrid / 2);
+
+    for (let r = 0; r < viewGrid; r++) {
+      for (let c = 0; c < viewGrid; c++) {
+        const mapX = offsetX + c;
+        const mapY = offsetY + r;
+
+        const screenX = c * tileSize;
+        const screenY = r * tileSize;
+
+        // マップ範囲外の描写（エリア外）
+        if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
+          ctx.fillStyle = '#05050a';
+          ctx.fillRect(screenX, screenY, tileSize, tileSize);
+          continue;
+        }
+
+        const type = map[mapY][mapX];
+
+        // 地面タイル（グリッドの模様）
+        ctx.fillStyle = (mapX + mapY) % 2 === 0 ? '#2e7d32' : '#286e2c';
+        ctx.fillRect(screenX, screenY, tileSize, tileSize);
 
         if (type === 1) {
-          // 木・障害物
+          // 外枠エリア
+          ctx.fillStyle = '#0f3460';
+          ctx.fillRect(screenX, screenY, tileSize, tileSize);
+        } else if (type === 6) {
+          // シンボルツリー
           ctx.fillStyle = '#1b5e20';
-          ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
         } else if (type >= 2 && type <= 4) {
           // ミッション宝球
           ctx.fillStyle = '#ffd700';
           ctx.beginPath();
-          ctx.arc(x + 16, y + 16, 8, 0, Math.PI * 2);
+          ctx.arc(screenX + 16, screenY + 16, 8, 0, Math.PI * 2);
           ctx.fill();
         } else if (type === 5) {
           // ゴール
           ctx.fillStyle = '#e94560';
-          ctx.fillRect(x + 4, y + 4, tileSize - 8, tileSize - 8);
+          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
         }
       }
     }
 
-    // プレイヤー（荻田）
+    // プレイヤー（常に画面真ん中：5*32px = 160px の位置に描画）
+    const centerPos = Math.floor(viewGrid / 2) * tileSize;
     ctx.fillStyle = '#00f3ff';
-    ctx.fillRect(player.x * tileSize + 6, player.y * tileSize + 6, tileSize - 12, tileSize - 12);
+    ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
     ctx.fillStyle = '#000';
-    ctx.fillRect(player.x * tileSize + 10, player.y * tileSize + 10, 4, 4);
-    ctx.fillRect(player.x * tileSize + 18, player.y * tileSize + 10, 4, 4);
+    ctx.fillRect(centerPos + 10, centerPos + 10, 4, 4);
+    ctx.fillRect(centerPos + 18, centerPos + 10, 4, 4);
   }
 
   function movePlayer(dx, dy) {
     const newX = player.x + dx;
     const newY = player.y + dy;
 
-    if (map[newY][newX] !== 1) {
+    // 外枠壁（1）と 木（6） 以外は自由に歩ける
+    if (map[newY][newX] !== 1 && map[newY][newX] !== 6) {
       player.x = newX;
       player.y = newY;
       playSe();
@@ -252,23 +289,23 @@
     if (target === 2) {
       map[y][x] = 0;
       clearedMissions++;
-      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション1完了】</span><br>公園で『落とし物の鍵』を拾った！";
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション1完了】</span><br>北西の草原で『黄金の鍵』を発見！";
     } else if (target === 3) {
       map[y][x] = 0;
       clearedMissions++;
-      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション2完了】</span><br>路地裏の『暗号』を解読した！";
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション2完了】</span><br>南西の広場で『秘伝の書』を獲得！";
     } else if (target === 4) {
       map[y][x] = 0;
       clearedMissions++;
-      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション3完了】</span><br>ボス猫を手懐けた！";
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション3完了】</span><br>東の森で『長老の証』を入手！";
     } else if (target === 5) {
       if (clearedMissions >= 3) {
-        dialog.innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>すべてのミッションを達成してゴールに到達した！";
+        dialog.innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>広い世界を駆け巡り、すべての冒険を達成した！";
       } else {
-        dialog.innerHTML = "ゴールの扉は閉じられている…<br>マップ上の黄色い光を3つ集めよう！";
+        dialog.innerHTML = "南東の遺跡の扉は閉じられている…<br>フィールドに散らばる3つの宝を集めよう！";
       }
     } else {
-      dialog.innerText = "歩いて街を探索中…";
+      dialog.innerText = `現在地: (${x}, ${y}) - フィールドを自由に探索中…`;
     }
     document.getElementById('mission-count').textContent = clearedMissions;
   }
