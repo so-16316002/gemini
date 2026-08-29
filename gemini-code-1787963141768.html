@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 - 4つの戦闘コマンド版</title>
+  <title>荻田の大冒険 - 戦闘レイアウト変更版</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -56,7 +56,7 @@
       margin-bottom: 10px;
     }
 
-    /* 戦闘画面オーバーレイ */
+    /* 戦闘画面（奥に敵・手前に自分） */
     #battle-overlay {
       display: none;
       position: absolute;
@@ -70,34 +70,66 @@
       padding: 15px;
       flex-direction: column;
       justify-content: space-between;
-      align-items: center;
       z-index: 10;
     }
-    .enemy-display {
+
+    /* 奥：敵エリア */
+    .enemy-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 5px;
+    }
+    .enemy-info {
+      font-size: 0.9rem;
+      font-weight: bold;
+      margin-bottom: 5px;
       text-align: center;
-      margin-top: 10px;
     }
     .enemy-icon {
-      width: 60px;
-      height: 60px;
+      width: 50px;
+      height: 50px;
       background-color: #4caf50;
-      margin: 0 auto 10px auto;
       border-radius: 8px;
     }
+
+    /* 手前：主人公エリア */
+    .hero-area {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1f4068;
+      border: 1px solid #00f3ff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 5px;
+    }
+    .hero-icon {
+      width: 32px;
+      height: 32px;
+      background-color: #00f3ff;
+      border-radius: 4px;
+    }
+    .hero-info {
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+
+    /* コマンドボタン */
     .battle-btns {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      gap: 8px;
       width: 100%;
     }
     .battle-btn {
-      padding: 12px;
+      padding: 10px;
       background: #1f4068;
       color: #fff;
       border: 2px solid #00f3ff;
       border-radius: 6px;
       font-weight: bold;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       cursor: pointer;
     }
     .battle-btn:active { background: #00f3ff; color: #000; }
@@ -135,14 +167,28 @@
 
   <!-- 戦闘画面 -->
   <div id="battle-overlay">
-    <div class="enemy-display">
+    <!-- 【奥】敵エリア（Lvのみ表示、HPは隠す） -->
+    <div class="enemy-area">
+      <div class="enemy-info">
+        <span id="enemy-name">スライム</span> <span style="color:#ffcc00;">Lv.<span id="enemy-lv">1</span></span>
+      </div>
       <div class="enemy-icon" id="enemy-icon"></div>
-      <h3 id="enemy-name" style="margin: 5px 0;">スライム</h3>
-      <div>HP: <span id="enemy-hp">15</span></div>
     </div>
-    <div id="battle-msg" style="text-align:center; font-size: 0.85rem; color:#ffd700;"></div>
-    
-    <!-- 4つの選択肢コマンド -->
+
+    <div id="battle-msg" style="text-align:center; font-size: 0.8rem; color:#ffd700; margin: 5px 0;"></div>
+
+    <!-- 【手前】主人公エリア（LvとHPを表示） -->
+    <div class="hero-area">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="hero-icon"></div>
+        <div>荻田</div>
+      </div>
+      <div class="hero-info">
+        Lv.<span id="b-hero-lv">1</span> | HP: <span id="b-hero-hp">30</span>/<span id="b-hero-maxhp">30</span>
+      </div>
+    </div>
+
+    <!-- 4つのコマンドボタン -->
     <div class="battle-btns">
       <button class="battle-btn" onclick="cmdFight()">⚔️ 戦う</button>
       <button class="battle-btn" onclick="cmdDefend()">🛡️ 防御</button>
@@ -151,7 +197,7 @@
     </div>
   </div>
 
-  <div id="dialog">【始まりの地】<br>中央下からスタート！4つの戦闘コマンドを駆使して戦おう。</div>
+  <div id="dialog">【始まりの地】<br>中央下からスタート！奥の敵に挑もう。</div>
 
   <div class="controls">
     <div class="empty"></div>
@@ -175,12 +221,11 @@
   const mapHeight = 30;
   const viewGrid = 12;
 
-  // プレイヤー情報（所持アイテム追加）
   const player = {
     x: 15, y: 26,
     lv: 1, hp: 30, maxHp: 30, atk: 8,
     gold: 0, exp: 0,
-    potion: 2 // 初期ポーション数
+    potion: 2
   };
 
   let currentEnemy = null;
@@ -193,7 +238,6 @@
     defeatedKatsuta: false
   };
 
-  // 0:平地, 1:壁, 2:村人, 3:中ボス, 4:思い出, 5:勝田, 6:雑魚
   const map = Array.from({ length: mapHeight }, (_, r) =>
     Array.from({ length: mapWidth }, (_, c) => {
       if (r === 0 || r === mapHeight - 1 || c === 0 || c === mapWidth - 1) return 1;
@@ -215,6 +259,11 @@
     document.getElementById('player-lv').textContent = player.lv;
     document.getElementById('player-hp').textContent = player.hp;
     document.getElementById('gold-val').textContent = player.gold;
+
+    // 戦闘画面内の主人公ステータスも更新
+    document.getElementById('b-hero-lv').textContent = player.lv;
+    document.getElementById('b-hero-hp').textContent = player.hp;
+    document.getElementById('b-hero-maxhp').textContent = player.maxHp;
   }
 
   function drawMap() {
@@ -279,11 +328,11 @@
     const dialog = document.getElementById('dialog');
 
     if (type === 2) {
-      dialog.innerHTML = "<strong>村人:</strong><br>「ポーションは体力を20回復できるぞ。コマンドから使おう！」";
+      dialog.innerHTML = "<strong>村人:</strong><br>「敵の正確な体力（HP）は分からない。Lvを目安にして戦おう！」";
     } else if (type === 6) {
-      startBattle("野良スライム", 15, 4, 20, 15, "#4caf50", x, y);
+      startBattle("野良スライム", 1, 15, 4, 20, 15, "#4caf50", x, y);
     } else if (type === 3) {
-      startBattle("地図持ちガード", 40, 8, 100, 50, "#e53935", x, y, true);
+      startBattle("地図持ちガード", 3, 40, 8, 100, 50, "#e53935", x, y, true);
     } else if (type === 4) {
       if (!state.hasMap) {
         dialog.innerHTML = "<strong>システム:</strong><br>地図がないため、まだ進めない…";
@@ -295,52 +344,46 @@
       if (!state.visitedHome) {
         dialog.innerHTML = "<strong>勝田:</strong><br>「己の原点を見つめ直してこい。」";
       } else {
-        startBattle("師匠・勝田", 80, 12, 0, 200, "#ff1744", x, y, false, true);
+        startBattle("師匠・勝田", 5, 80, 12, 0, 200, "#ff1744", x, y, false, true);
       }
     }
   }
 
-  function startBattle(name, hp, atk, rewardGold, rewardExp, color, x, y, isBoss = false, isFinal = false) {
-    currentEnemy = { name, hp, maxHp: hp, atk, rewardGold, rewardExp, isBoss, isFinal };
+  function startBattle(name, lv, hp, atk, rewardGold, rewardExp, color, x, y, isBoss = false, isFinal = false) {
+    currentEnemy = { name, lv, hp, maxHp: hp, atk, rewardGold, rewardExp, isBoss, isFinal };
     currentEnemyPos = { x, y };
     isTurnProcessing = false;
 
     document.getElementById('enemy-name').textContent = name;
-    document.getElementById('enemy-hp').textContent = hp;
+    document.getElementById('enemy-lv').textContent = lv;
     document.getElementById('enemy-icon').style.backgroundColor = color;
-    document.getElementById('battle-msg').textContent = `${name} が現れた！`;
+    document.getElementById('battle-msg').textContent = `${name} (Lv.${lv}) が現れた！`;
+    
+    updateStatusUI();
     document.getElementById('battle-overlay').style.display = 'flex';
   }
 
-  // --- 4つの戦闘コマンド処理 ---
-
-  // 1. 戦う
   function cmdFight() {
     if (isTurnProcessing || !currentEnemy) return;
     isTurnProcessing = true;
 
     const dmg = player.atk + Math.floor(Math.random() * 3);
     currentEnemy.hp = Math.max(0, currentEnemy.hp - dmg);
-    document.getElementById('enemy-hp').textContent = currentEnemy.hp;
 
     if (checkEnemyDefeated()) return;
 
-    // 敵の攻撃
     const enemyDmg = Math.max(1, currentEnemy.atk + Math.floor(Math.random() * 2));
     applyDamageToPlayer(enemyDmg, `荻田の攻撃！ ${dmg} のダメージ！ 反撃で ${enemyDmg} 受けた！`);
   }
 
-  // 2. 防御
   function cmdDefend() {
     if (isTurnProcessing || !currentEnemy) return;
     isTurnProcessing = true;
 
-    // ダメージを半減
     const enemyDmg = Math.max(1, Math.floor((currentEnemy.atk + Math.floor(Math.random() * 2)) / 2));
-    applyDamageToPlayer(enemyDmg, `荻田は身構えた！ 受けるダメージが軽減され ${enemyDmg} 受けた！`);
+    applyDamageToPlayer(enemyDmg, `荻田は身構えた！ ダメージが軽減され ${enemyDmg} 受けた！`);
   }
 
-  // 3. 持ち物（ポーション）
   function cmdItem() {
     if (isTurnProcessing || !currentEnemy) return;
 
@@ -356,10 +399,9 @@
     updateStatusUI();
 
     const enemyDmg = Math.max(1, currentEnemy.atk + Math.floor(Math.random() * 2));
-    applyDamageToPlayer(enemyDmg, `ポーション使用！ HPが${healVal}回復した！（残り${player.potion}個） 敵の攻撃で ${enemyDmg} 受けた！`);
+    applyDamageToPlayer(enemyDmg, `ポーション使用！ HPが${healVal}回復！（残り${player.potion}個） 敵の反撃で ${enemyDmg} 受けた！`);
   }
 
-  // 4. 逃げる
   function cmdRun() {
     if (isTurnProcessing || !currentEnemy) return;
     document.getElementById('battle-msg').textContent = "逃げ出した！";
@@ -369,7 +411,6 @@
     }, 600);
   }
 
-  // 敵撃破チェック
   function checkEnemyDefeated() {
     if (currentEnemy.hp <= 0) {
       document.getElementById('battle-msg').textContent = `撃破！ ${currentEnemy.rewardGold}G と ${currentEnemy.rewardExp}EXP を獲得！`;
@@ -401,7 +442,6 @@
     return false;
   }
 
-  // プレイヤーへのダメージ処理
   function applyDamageToPlayer(dmg, msg) {
     player.hp = Math.max(0, player.hp - dmg);
     updateStatusUI();
