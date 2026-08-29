@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 - 戦闘システム追加版</title>
+  <title>荻田の大冒険 - 4つの戦闘コマンド版</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -45,7 +45,6 @@
       image-rendering: pixelated;
     }
 
-    /* 会話・情報メッセージ */
     #dialog {
       background-color: #0f3460;
       border: 2px solid #00f3ff;
@@ -68,7 +67,7 @@
       background-color: #0a0a14;
       border: 3px solid #ff0055;
       border-radius: 8px;
-      padding: 20px;
+      padding: 15px;
       flex-direction: column;
       justify-content: space-between;
       align-items: center;
@@ -76,7 +75,7 @@
     }
     .enemy-display {
       text-align: center;
-      margin-top: 20px;
+      margin-top: 10px;
     }
     .enemy-icon {
       width: 60px;
@@ -86,18 +85,19 @@
       border-radius: 8px;
     }
     .battle-btns {
-      display: flex;
-      gap: 15px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
       width: 100%;
     }
     .battle-btn {
-      flex: 1;
       padding: 12px;
       background: #1f4068;
       color: #fff;
       border: 2px solid #00f3ff;
       border-radius: 6px;
       font-weight: bold;
+      font-size: 0.9rem;
       cursor: pointer;
     }
     .battle-btn:active { background: #00f3ff; color: #000; }
@@ -141,13 +141,17 @@
       <div>HP: <span id="enemy-hp">15</span></div>
     </div>
     <div id="battle-msg" style="text-align:center; font-size: 0.85rem; color:#ffd700;"></div>
+    
+    <!-- 4つの選択肢コマンド -->
     <div class="battle-btns">
-      <button class="battle-btn" onclick="attackEnemy()">攻撃</button>
-      <button class="battle-btn" onclick="runAway()">逃げる</button>
+      <button class="battle-btn" onclick="cmdFight()">⚔️ 戦う</button>
+      <button class="battle-btn" onclick="cmdDefend()">🛡️ 防御</button>
+      <button class="battle-btn" onclick="cmdItem()">🎒 持ち物</button>
+      <button class="battle-btn" onclick="cmdRun()">🏃 逃げる</button>
     </div>
   </div>
 
-  <div id="dialog">【始まりの地】<br>緑の雑魚モンスターを倒してお金を稼ごう！</div>
+  <div id="dialog">【始まりの地】<br>中央下からスタート！4つの戦闘コマンドを駆使して戦おう。</div>
 
   <div class="controls">
     <div class="empty"></div>
@@ -171,15 +175,17 @@
   const mapHeight = 30;
   const viewGrid = 12;
 
-  // ステータス
+  // プレイヤー情報（所持アイテム追加）
   const player = {
-    x: 5, y: 5,
+    x: 15, y: 26,
     lv: 1, hp: 30, maxHp: 30, atk: 8,
-    gold: 0, exp: 0
+    gold: 0, exp: 0,
+    potion: 2 // 初期ポーション数
   };
 
   let currentEnemy = null;
   let currentEnemyPos = null;
+  let isTurnProcessing = false;
 
   const state = {
     hasMap: false,
@@ -187,7 +193,7 @@
     defeatedKatsuta: false
   };
 
-  // 0:平地, 1:壁, 2:村人, 3:地図持ち中ボス, 4:思い出の品, 5:勝田, 6:雑魚モンスター
+  // 0:平地, 1:壁, 2:村人, 3:中ボス, 4:思い出, 5:勝田, 6:雑魚
   const map = Array.from({ length: mapHeight }, (_, r) =>
     Array.from({ length: mapWidth }, (_, c) => {
       if (r === 0 || r === mapHeight - 1 || c === 0 || c === mapWidth - 1) return 1;
@@ -195,16 +201,15 @@
     })
   );
 
-  // オブジェクト配置
-  map[5][7] = 2;    // 村人
-  map[8][10] = 3;   // 地図持ち中ボス
-  map[15][15] = 4;  // 思い出の品
-  map[25][25] = 5;  // 勝田
+  map[26][17] = 2;   // 村人
+  map[20][5] = 3;    // 中ボス（西）
+  map[20][25] = 4;   // 思い出（東）
+  map[3][15] = 5;    // 勝田（北）
 
-  // 雑魚モンスターを数体配置
-  map[4][8] = 6;
-  map[7][4] = 6;
-  map[10][6] = 6;
+  map[24][13] = 6;
+  map[22][16] = 6;
+  map[25][10] = 6;
+  map[18][8] = 6;
 
   function updateStatusUI() {
     document.getElementById('player-lv').textContent = player.lv;
@@ -233,23 +238,15 @@
 
         const type = map[mapY][mapX];
 
-        // 地面
         ctx.fillStyle = '#388e3c';
         ctx.fillRect(screenX, screenY, tileSize, tileSize);
 
-        if (type === 1) {
-          ctx.fillStyle = '#1b5e20';
-        } else if (type === 2) {
-          ctx.fillStyle = '#ffb74d'; // 村人
-        } else if (type === 3) {
-          ctx.fillStyle = '#e53935'; // 中ボス（赤）
-        } else if (type === 4) {
-          ctx.fillStyle = '#ba68c8'; // 思い出の品
-        } else if (type === 5) {
-          ctx.fillStyle = '#ff1744'; // 勝田
-        } else if (type === 6) {
-          ctx.fillStyle = '#4caf50'; // 雑魚モンスター（緑）
-        }
+        if (type === 1) ctx.fillStyle = '#1b5e20';
+        else if (type === 2) ctx.fillStyle = '#ffb74d';
+        else if (type === 3) ctx.fillStyle = '#e53935';
+        else if (type === 4) ctx.fillStyle = '#ba68c8';
+        else if (type === 5) ctx.fillStyle = '#ff1744';
+        else if (type === 6) ctx.fillStyle = '#4caf50';
 
         if (type !== 0) {
           ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
@@ -257,14 +254,13 @@
       }
     }
 
-    // プレイヤー
     const centerPos = Math.floor(viewGrid / 2) * tileSize;
     ctx.fillStyle = '#00f3ff';
     ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
   }
 
   function movePlayer(dx, dy) {
-    if (currentEnemy) return; // 戦闘中は移動不可
+    if (currentEnemy) return;
 
     const newX = player.x + dx;
     const newY = player.y + dy;
@@ -283,34 +279,31 @@
     const dialog = document.getElementById('dialog');
 
     if (type === 2) {
-      dialog.innerHTML = "<strong>村人:</strong><br>「緑のモンスターを倒してお金を溜めよう。準備ができたら赤の中ボスに挑むんだ！」";
+      dialog.innerHTML = "<strong>村人:</strong><br>「ポーションは体力を20回復できるぞ。コマンドから使おう！」";
     } else if (type === 6) {
-      // 雑魚モンスターとの戦闘開始
       startBattle("野良スライム", 15, 4, 20, 15, "#4caf50", x, y);
     } else if (type === 3) {
-      // 中ボスとの戦闘開始
       startBattle("地図持ちガード", 40, 8, 100, 50, "#e53935", x, y, true);
     } else if (type === 4) {
       if (!state.hasMap) {
         dialog.innerHTML = "<strong>システム:</strong><br>地図がないため、まだ進めない…";
       } else {
         state.visitedHome = true;
-        dialog.innerHTML = "<span style='color:#ba68c8;'>【故郷の思い出】</span><br>木刀を発見した！『勝田は最果ての地（南東）で待つ』";
+        dialog.innerHTML = "<span style='color:#ba68c8;'>【故郷の思い出】</span><br>木刀を発見した！『勝田は最北の地で待つ』";
       }
     } else if (type === 5) {
       if (!state.visitedHome) {
-        dialog.innerHTML = "<strong>勝田:</strong><br>「故郷で己の原点を見つめ直してこい。」";
+        dialog.innerHTML = "<strong>勝田:</strong><br>「己の原点を見つめ直してこい。」";
       } else {
-        // ラストボス戦
         startBattle("師匠・勝田", 80, 12, 0, 200, "#ff1744", x, y, false, true);
       }
     }
   }
 
-  // 戦闘処理
   function startBattle(name, hp, atk, rewardGold, rewardExp, color, x, y, isBoss = false, isFinal = false) {
     currentEnemy = { name, hp, maxHp: hp, atk, rewardGold, rewardExp, isBoss, isFinal };
     currentEnemyPos = { x, y };
+    isTurnProcessing = false;
 
     document.getElementById('enemy-name').textContent = name;
     document.getElementById('enemy-hp').textContent = hp;
@@ -319,22 +312,70 @@
     document.getElementById('battle-overlay').style.display = 'flex';
   }
 
-  function attackEnemy() {
-    if (!currentEnemy) return;
+  // --- 4つの戦闘コマンド処理 ---
 
-    // プレイヤーの攻撃
+  // 1. 戦う
+  function cmdFight() {
+    if (isTurnProcessing || !currentEnemy) return;
+    isTurnProcessing = true;
+
     const dmg = player.atk + Math.floor(Math.random() * 3);
-    currentEnemy.hp -= dmg;
-    if (currentEnemy.hp < 0) currentEnemy.hp = 0;
+    currentEnemy.hp = Math.max(0, currentEnemy.hp - dmg);
     document.getElementById('enemy-hp').textContent = currentEnemy.hp;
 
+    if (checkEnemyDefeated()) return;
+
+    // 敵の攻撃
+    const enemyDmg = Math.max(1, currentEnemy.atk + Math.floor(Math.random() * 2));
+    applyDamageToPlayer(enemyDmg, `荻田の攻撃！ ${dmg} のダメージ！ 反撃で ${enemyDmg} 受けた！`);
+  }
+
+  // 2. 防御
+  function cmdDefend() {
+    if (isTurnProcessing || !currentEnemy) return;
+    isTurnProcessing = true;
+
+    // ダメージを半減
+    const enemyDmg = Math.max(1, Math.floor((currentEnemy.atk + Math.floor(Math.random() * 2)) / 2));
+    applyDamageToPlayer(enemyDmg, `荻田は身構えた！ 受けるダメージが軽減され ${enemyDmg} 受けた！`);
+  }
+
+  // 3. 持ち物（ポーション）
+  function cmdItem() {
+    if (isTurnProcessing || !currentEnemy) return;
+
+    if (player.potion <= 0) {
+      document.getElementById('battle-msg').textContent = "ポーションを持っていない！";
+      return;
+    }
+
+    isTurnProcessing = true;
+    player.potion--;
+    const healVal = 20;
+    player.hp = Math.min(player.maxHp, player.hp + healVal);
+    updateStatusUI();
+
+    const enemyDmg = Math.max(1, currentEnemy.atk + Math.floor(Math.random() * 2));
+    applyDamageToPlayer(enemyDmg, `ポーション使用！ HPが${healVal}回復した！（残り${player.potion}個） 敵の攻撃で ${enemyDmg} 受けた！`);
+  }
+
+  // 4. 逃げる
+  function cmdRun() {
+    if (isTurnProcessing || !currentEnemy) return;
+    document.getElementById('battle-msg').textContent = "逃げ出した！";
+    setTimeout(() => {
+      document.getElementById('battle-overlay').style.display = 'none';
+      currentEnemy = null;
+    }, 600);
+  }
+
+  // 敵撃破チェック
+  function checkEnemyDefeated() {
     if (currentEnemy.hp <= 0) {
-      // 勝利
       document.getElementById('battle-msg').textContent = `撃破！ ${currentEnemy.rewardGold}G と ${currentEnemy.rewardExp}EXP を獲得！`;
       player.gold += currentEnemy.rewardGold;
       player.exp += currentEnemy.rewardExp;
 
-      // レベルアップ判定
       if (player.exp >= player.lv * 30) {
         player.lv++;
         player.maxHp += 10;
@@ -344,28 +385,25 @@
 
       updateStatusUI();
 
-      // マップから敵を消去
-      if (currentEnemyPos) {
-        map[currentEnemyPos.y][currentEnemyPos.x] = 0;
-      }
-
+      if (currentEnemyPos) map[currentEnemyPos.y][currentEnemyPos.x] = 0;
       if (currentEnemy.isBoss) state.hasMap = true;
 
       setTimeout(() => {
         document.getElementById('battle-overlay').style.display = 'none';
         if (currentEnemy.isFinal) {
-          document.getElementById('dialog').innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>勝田を倒し、世界に平和を取り戻した！";
+          document.getElementById('dialog').innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>かつての師匠・勝田を撃破した！";
         }
         currentEnemy = null;
         drawMap();
       }, 1200);
-      return;
+      return true;
     }
+    return false;
+  }
 
-    // 敵の反撃
-    const enemyDmg = currentEnemy.atk + Math.floor(Math.random() * 2);
-    player.hp -= enemyDmg;
-    if (player.hp < 0) player.hp = 0;
+  // プレイヤーへのダメージ処理
+  function applyDamageToPlayer(dmg, msg) {
+    player.hp = Math.max(0, player.hp - dmg);
     updateStatusUI();
 
     if (player.hp <= 0) {
@@ -377,17 +415,17 @@
         currentEnemy = null;
       }, 1500);
     } else {
-      document.getElementById('battle-msg').textContent = `荻田の攻撃！ ${dmg} のダメージ！ 反撃で ${enemyDmg} 受けた！`;
+      document.getElementById('battle-msg').textContent = msg;
+      isTurnProcessing = false;
     }
   }
 
-  function runAway() {
-    document.getElementById('battle-msg').textContent = "逃げ出した！";
-    setTimeout(() => {
-      document.getElementById('battle-overlay').style.display = 'none';
-      currentEnemy = null;
-    }, 600);
-  }
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'w') movePlayer(0, -1);
+    if (e.key === 'ArrowDown' || e.key === 's') movePlayer(0, 1);
+    if (e.key === 'ArrowLeft' || e.key === 'a') movePlayer(-1, 0);
+    if (e.key === 'ArrowRight' || e.key === 'd') movePlayer(1, 0);
+  });
 
   updateStatusUI();
   drawMap();
