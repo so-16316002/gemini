@@ -16,7 +16,6 @@
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      overflow: hidden;
     }
 
     /* タイトル画面 */
@@ -27,8 +26,7 @@
       align-items: center;
       justify-content: center;
       width: 100%;
-      max-width: 600px;
-      padding: 20px;
+      max-width: 500px;
     }
     .title-logo {
       font-size: 3rem;
@@ -50,10 +48,7 @@
       letter-spacing: 2px;
       animation: blink 1.2s infinite;
     }
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.2; }
-    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
     .btn-neon {
       background: transparent;
       color: #00ff66;
@@ -65,95 +60,69 @@
       cursor: pointer;
       box-shadow: 0 0 10px #00ff66, inset 0 0 10px #00ff66;
       text-shadow: 0 0 5px #00ff66;
-      transition: all 0.2s ease;
-    }
-    .btn-neon:hover {
-      background: #00ff66;
-      color: #05050a;
-      box-shadow: 0 0 20px #00ff66, inset 0 0 20px #00ff66;
     }
 
-    /* ゲーム本編 */
+    /* 本編画面 */
     #game-container {
       display: none;
       width: 100%;
-      max-width: 600px;
+      max-width: 480px;
       background-color: #16213e;
       border: 3px solid #0f3460;
       border-radius: 12px;
-      padding: 20px;
+      padding: 15px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.5);
     }
     .header {
       display: flex;
       justify-content: space-between;
-      border-bottom: 2px solid #0f3460;
-      padding-bottom: 10px;
-      margin-bottom: 15px;
+      margin-bottom: 10px;
       font-size: 0.9rem;
     }
-    .status-val { font-weight: bold; color: #e94560; }
     
-    /* マップ表示エリア */
-    #map-grid {
+    /* 2Dキャンバス（ポケモン風マップ） */
+    #map-canvas {
+      background-color: #388e3c; /* 地面の緑色 */
+      border: 2px solid #fff;
+      border-radius: 8px;
+      display: block;
+      margin: 0 auto 10px auto;
+      image-rendering: pixelated;
+    }
+
+    /* メッセージダイアログ */
+    #dialog {
+      background-color: #0f3460;
+      border: 2px solid #00f3ff;
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 70px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+
+    /* スマホ・PC共通の操作コントローラー */
+    .controls {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-bottom: 15px;
+      gap: 5px;
+      max-width: 200px;
+      margin: 0 auto;
     }
-    .map-cell {
-      background-color: #0f3460;
-      border: 1px solid #1f4068;
-      border-radius: 6px;
-      padding: 10px 5px;
-      text-align: center;
-      font-size: 0.8rem;
-      color: #888;
-    }
-    .map-cell.active {
-      background-color: #e94560;
-      color: #fff;
-      font-weight: bold;
-      border-color: #ff6b81;
-      box-shadow: 0 0 8px #e94560;
-    }
-    .map-cell.cleared {
-      color: #00ff66;
-    }
-
-    #screen {
-      background-color: #0f3460;
-      border-radius: 8px;
-      padding: 15px;
-      min-height: 100px;
-      margin-bottom: 15px;
-      line-height: 1.6;
-      font-size: 0.95rem;
-    }
-
-    .choices-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .game-btn {
-      background-color: #1f4068;
+    .ctrl-btn {
+      background: #1f4068;
       color: #fff;
       border: 1px solid #00f3ff;
-      padding: 12px;
-      border-radius: 6px;
-      font-size: 0.9rem;
+      padding: 12px 0;
+      font-size: 1rem;
       font-weight: bold;
+      border-radius: 6px;
       cursor: pointer;
-      transition: background-color 0.2s;
+      touch-action: manipulation;
     }
-    .game-btn:hover { background-color: #00f3ff; color: #000; }
-    .game-btn.action-btn {
-      background-color: #e94560;
-      border-color: #ff6b81;
-      grid-column: span 2;
-    }
-    .game-btn.action-btn:hover { background-color: #ff6b81; color: #fff; }
+    .ctrl-btn:active { background: #00f3ff; color: #000; }
+    .empty { visibility: hidden; }
   </style>
 </head>
 <body>
@@ -168,202 +137,168 @@
 <!-- 本編画面 -->
 <div id="game-container">
   <div class="header">
-    <div>荻田 HP: <span id="hp" class="status-val">100</span></div>
-    <div>達成ミッション: <span id="mission-count" style="color:#00ff66; font-weight:bold;">0</span> / 3</div>
+    <div>主人公: <strong>荻田</strong></div>
+    <div>ミッション: <span id="mission-count" style="color:#00ff66; font-weight:bold;">0</span> / 3</div>
   </div>
 
-  <!-- 3x3のマップを表示 -->
-  <div id="map-grid">
-    <div class="map-cell" id="cell-0">公園</div>
-    <div class="map-cell" id="cell-1">コンビニ</div>
-    <div class="map-cell" id="cell-2">怪しいビル</div>
-    <div class="map-cell" id="cell-3">商店街</div>
-    <div class="map-cell active" id="cell-4">自宅前 (現在地)</div>
-    <div class="map-cell" id="cell-5">駅前</div>
-    <div class="map-cell" id="cell-6">川原</div>
-    <div class="map-cell" id="cell-7">裏路地</div>
-    <div class="map-cell" id="cell-8">廃校</div>
-  </div>
+  <!-- マップ描画用キャンバス (10x10マス, 1マス32px) -->
+  <canvas id="map-canvas" width="320" height="320"></canvas>
 
-  <div id="screen">読み込み中...</div>
-  <div id="choices" class="choices-grid"></div>
+  <div id="dialog">矢印キー または 下のボタンで荻田を動かそう！</div>
+
+  <!-- 移動コントローラー -->
+  <div class="controls">
+    <div class="empty"></div>
+    <button class="ctrl-btn" onclick="movePlayer(0, -1)">▲</button>
+    <div class="empty"></div>
+    <button class="ctrl-btn" onclick="movePlayer(-1, 0)">◄</button>
+    <div class="empty"></div>
+    <button class="ctrl-btn" onclick="movePlayer(1, 0)">►</button>
+    <div class="empty"></div>
+    <button class="ctrl-btn" onclick="movePlayer(0, 1)">▼</button>
+    <div class="empty"></div>
+  </div>
 </div>
 
 <script>
   let audioCtx = null;
-  let bgmInterval = null;
-
   function initAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-
   function playSe() {
     initAudio();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = 'square';
-    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-    osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.05);
+    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.2);
+    osc.stop(audioCtx.currentTime + 0.1);
   }
 
-  function startBgm() {
-    if (bgmInterval) return;
-    initAudio();
-    const notes = [261.63, 329.63, 392.00, 523.25];
-    let step = 0;
-    bgmInterval = setInterval(() => {
-      if (!audioCtx) return;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(notes[step % notes.length], audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.25);
-      step++;
-    }, 300);
-  }
+  const canvas = document.getElementById('map-canvas');
+  const ctx = canvas.getContext('2d');
+  const tileSize = 32;
+  const gridCount = 10;
 
-  window.addEventListener('click', () => { startBgm(); }, { once: true });
+  // プレイヤー（荻田）の初期位置
+  const player = { x: 1, y: 1 };
+  let clearedMissions = 0;
 
-  // マップデータ（3x3グリッド）
-  const mapData = [
-    { name: "公園", desc: "ミッション1：【失くした鍵を探せ】<br>ベンチの近くを探索しよう。", hasMission: true, cleared: false },
-    { name: "コンビニ", desc: "エナジードリンクを買って休憩できる。(HP全回復)", hasMission: false },
-    { name: "怪しいビル", desc: "ミッション2：【謎の暗号を解け】<br>壁に何か書かれている…", hasMission: true, cleared: false },
-    { name: "商店街", desc: "活気のある商店街。人々が行き交っている。", hasMission: false },
-    { name: "自宅前", desc: "スタート地点。冒険の準備は整った。", hasMission: false },
-    { name: "駅前", desc: "人がたくさんいる。特に怪しいものはない。", hasMission: false },
-    { name: "川原", desc: "風が気持ちいい。リフレッシュできる。", hasMission: false },
-    { name: "裏路地", desc: "ミッション3：【野良猫ボスを説得せよ】<br>ボス猫が通せんぼしている！", hasMission: true, cleared: false },
-    { name: "廃校", desc: "【最終目的地】全てのミッションをクリアすると入れるようだ…", hasMission: false }
+  // マップデータ（0: 道, 1: 木/障害物, 2: ミッション1, 3: ミッション2, 4: ミッション3, 5: ゴール廃校）
+  const map = [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 1, 2, 0, 0, 0, 1],
+    [1, 0, 1, 0, 1, 1, 1, 1, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 1, 1, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 3, 0, 1, 1, 0, 1],
+    [1, 1, 1, 0, 1, 0, 1, 4, 0, 1],
+    [1, 0, 0, 0, 1, 0, 1, 1, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 0, 5, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
   ];
 
-  const state = {
-    pos: 4, // スタートは中央 (自宅前)
-    hp: 100,
-    maxHp: 100,
-    clearedMissions: 0
-  };
+  // 描画処理
+  function drawMap() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  function updateMapUI() {
-    for (let i = 0; i < 9; i++) {
-      const cell = document.getElementById(`cell-${i}`);
-      cell.className = "map-cell";
-      
-      let label = mapData[i].name;
-      if (mapData[i].cleared) {
-        cell.classList.add("cleared");
-        label += " (済)";
+    for (let r = 0; r < gridCount; r++) {
+      for (let c = 0; c < gridCount; c++) {
+        const type = map[r][c];
+        const x = c * tileSize;
+        const y = r * tileSize;
+
+        if (type === 1) {
+          // 木（障害物）
+          ctx.fillStyle = '#1b5e20';
+          ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
+        } else if (type === 2 || type === 3 || type === 4) {
+          // ミッションの宝箱/キーアイテム
+          ctx.fillStyle = '#ffd700';
+          ctx.beginPath();
+          ctx.arc(x + 16, y + 16, 8, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (type === 5) {
+          // ゴール（廃校）
+          ctx.fillStyle = '#e94560';
+          ctx.fillRect(x + 4, y + 4, tileSize - 8, tileSize - 8);
+        }
       }
-      if (i === state.pos) {
-        cell.classList.add("active");
-        label += " ★";
-      }
-      cell.innerHTML = label;
     }
-    document.getElementById('hp').textContent = state.hp;
-    document.getElementById('mission-count').textContent = state.clearedMissions;
+
+    // 荻田（プレイヤー）の描画
+    ctx.fillStyle = '#00f3ff';
+    ctx.fillRect(player.x * tileSize + 6, player.y * tileSize + 6, tileSize - 12, tileSize - 12);
+    // 顔の目印
+    ctx.fillStyle = '#000';
+    ctx.fillRect(player.x * tileSize + 10, player.y * tileSize + 10, 4, 4);
+    ctx.fillRect(player.x * tileSize + 18, player.y * tileSize + 10, 4, 4);
   }
 
-  function renderLocation() {
-    updateMapUI();
-    const current = mapData[state.pos];
-    let html = `【${current.name}】<br>${current.desc}`;
+  // プレイヤーの移動
+  function movePlayer(dx, dy) {
+    const newX = player.x + dx;
+    const newY = player.y + dy;
 
-    const choices = [];
+    // 障害物判定
+    if (map[newY][newX] !== 1) {
+      player.x = newX;
+      player.y = newY;
+      playSe();
+      checkEvent(newX, newY);
+    }
+    drawMap();
+  }
 
-    // 現在地のミッション処理ボタン
-    if (current.hasMission && !current.cleared) {
-      choices.push({ text: "⚡ ミッションに挑戦する", action: doMission, isAction: true });
-    } else if (state.pos === 1) {
-      choices.push({ text: "🍷 ドリンクを飲んで回復", action: () => {
-        state.hp = state.maxHp;
-        renderText("HPが全回復した！");
-      }, isAction: true });
-    } else if (state.pos === 8) {
-      if (state.clearedMissions >= 3) {
-        choices.push({ text: "👑 廃校に入る（ラストクリア）", action: gameClear, isAction: true });
+  // イベントチェック
+  function checkEvent(x, y) {
+    const dialog = document.getElementById('dialog');
+    const target = map[y][x];
+
+    if (target === 2) {
+      map[y][x] = 0;
+      clearedMissions++;
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション1完了】</span><br>公園で『落とし物の鍵』を拾った！";
+    } else if (target === 3) {
+      map[y][x] = 0;
+      clearedMissions++;
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション2完了】</span><br>路地裏の『暗号』を解読した！";
+    } else if (target === 4) {
+      map[y][x] = 0;
+      clearedMissions++;
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション3完了】</span><br>ボス猫を手懐けた！";
+    } else if (target === 5) {
+      if (clearedMissions >= 3) {
+        dialog.innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>すべてのミッションを達成して廃校に到達した！";
       } else {
-        html += "<br><span style='color:#e94560;'>（鍵がかかっている。他の場所で3つのミッションをクリアしよう）</span>";
+        dialog.innerHTML = "廃校の扉は閉じられている…<br>すべてのミッション（黄色い光）を集めよう！";
       }
+    } else {
+      dialog.innerText = "歩いて街を探索中…";
     }
-
-    // 移動ボタン（上下左右）
-    const x = state.pos % 3;
-    const y = Math.floor(state.pos / 3);
-
-    if (y > 0) choices.push({ text: "⬆ 北へ移動", action: () => move(state.pos - 3) });
-    if (y < 2) choices.push({ text: "⬇ 南へ移動", action: () => move(state.pos + 3) });
-    if (x > 0) choices.push({ text: "⬅ 西へ移動", action: () => move(state.pos - 1) });
-    if (x < 2) choices.push({ text: "➡ 東へ移動", action: () => move(state.pos + 1) });
-
-    showChoices(html, choices);
+    document.getElementById('mission-count').textContent = clearedMissions;
   }
 
-  function move(newPos) {
-    state.pos = newPos;
-    renderLocation();
-  }
-
-  function showChoices(text, choices) {
-    document.getElementById('screen').innerHTML = text;
-    const container = document.getElementById('choices');
-    container.innerHTML = '';
-
-    choices.forEach(c => {
-      const btn = document.createElement('button');
-      btn.className = c.isAction ? 'game-btn action-btn' : 'game-btn';
-      btn.textContent = c.text;
-      btn.onclick = () => {
-        playSe();
-        c.action();
-      };
-      container.appendChild(btn);
-    });
-  }
-
-  function renderText(msg) {
-    showChoices(msg, [{ text: "戻る", action: renderLocation }]);
-  }
-
-  // ミッション実行処理
-  function doMission() {
-    const current = mapData[state.pos];
-    current.cleared = true;
-    state.clearedMissions++;
-
-    let msg = "";
-    if (state.pos === 0) msg = "荻田は草むらから【落とし物の鍵】を見つけ出した！ミッション達成！";
-    else if (state.pos === 2) msg = "壁の暗号『OGITA』を読み解いた！ミッション達成！";
-    else if (state.pos === 7) msg = "ボス猫にお菓子をあげて仲良くなった！ミッション達成！";
-
-    renderText(`【ミッションクリア！】<br>${msg}`);
-  }
-
-  // ゲームクリア
-  function gameClear() {
-    showChoices(
-      "【エンディング】<br>すべてのミッションを達成し、荻田は街の平和を守り抜いた！<br>🎉 GAME CLEAR 🎉",
-      [{ text: "タイトルに戻る", action: () => location.reload() }]
-    );
-  }
+  // キーボード操作
+  window.addEventListener('keydown', (e) => {
+    if (document.getElementById('game-container').style.display === 'block') {
+      if (e.key === 'ArrowUp' || e.key === 'w') movePlayer(0, -1);
+      if (e.key === 'ArrowDown' || e.key === 's') movePlayer(0, 1);
+      if (e.key === 'ArrowLeft' || e.key === 'a') movePlayer(-1, 0);
+      if (e.key === 'ArrowRight' || e.key === 'd') movePlayer(1, 0);
+    }
+  });
 
   // スタート処理
   document.getElementById('start-btn').addEventListener('click', () => {
-    playSe();
     document.getElementById('title-screen').style.display = 'none';
     document.getElementById('game-container').style.display = 'block';
-    renderLocation();
+    drawMap();
   });
 </script>
 
