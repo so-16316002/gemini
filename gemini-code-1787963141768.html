@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 3D</title>
-  <!-- Three.js 3Dライブラリの読み込み -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <title>荻田の大冒険 2D</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -83,13 +81,13 @@
       font-size: 0.9rem;
     }
     
-    #canvas-container {
-      width: 320px;
-      height: 320px;
-      margin: 0 auto 10px auto;
+    #map-canvas {
+      background-color: #2e7d32;
       border: 2px solid #00f3ff;
       border-radius: 8px;
-      overflow: hidden;
+      display: block;
+      margin: 0 auto 10px auto;
+      image-rendering: pixelated;
     }
 
     #dialog {
@@ -136,13 +134,13 @@
 <!-- 本編画面 -->
 <div id="game-container">
   <div class="header">
-    <div>主人公: <strong>荻田 (3D)</strong></div>
+    <div>主人公: <strong>荻田</strong></div>
     <div>ミッション: <span id="mission-count" style="color:#00ff66; font-weight:bold;">0</span> / 3</div>
   </div>
 
-  <div id="canvas-container"></div>
+  <canvas id="map-canvas" width="320" height="320"></canvas>
 
-  <div id="dialog">キーボードの矢印キー または ボタンで荻田を動かそう！</div>
+  <div id="dialog">矢印キー または 下のボタンで荻田を動かそう！</div>
 
   <div class="controls">
     <div class="empty"></div>
@@ -158,15 +156,34 @@
 </div>
 
 <script>
-  let scene, camera, renderer;
-  let playerMesh;
-  const itemMeshes = {};
-  
-  const gridSize = 10;
+  let audioCtx = null;
+  function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  function playSe() {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.05);
+    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.1);
+  }
+
+  const canvas = document.getElementById('map-canvas');
+  const ctx = canvas.getContext('2d');
+  const tileSize = 32;
+  const gridCount = 10;
+
   const player = { x: 1, y: 1 };
   let clearedMissions = 0;
 
-  // 0:床, 1:木(ブロック), 2:M1, 3:M2, 4:M3, 5:ゴール
+  // 0:道, 1:木/障害物, 2:M1, 3:M2, 4:M3, 5:ゴール
   const map = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 0, 0, 0, 1, 2, 0, 0, 0, 1],
@@ -180,89 +197,39 @@
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
   ];
 
-  function init3D() {
-    const container = document.getElementById('canvas-container');
-    
-    // シーン作成
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a1a);
+  function drawMap() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // カメラ設定（斜め見下ろしのアングル）
-    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
-    camera.position.set(5, 12, 12);
-    camera.lookAt(5, 0, 5);
-
-    // レンダラー設定
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(320, 320);
-    container.appendChild(renderer.domElement);
-
-    // 照明
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(10, 20, 10);
-    scene.add(dirLight);
-
-    // マップオブジェクト生成
-    for (let r = 0; r < gridSize; r++) {
-      for (let c = 0; c < gridSize; c++) {
+    for (let r = 0; r < gridCount; r++) {
+      for (let c = 0; c < gridCount; c++) {
         const type = map[r][c];
-
-        // 床
-        const floorGeo = new THREE.BoxGeometry(1, 0.1, 1);
-        const floorMat = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
-        const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.position.set(c, 0, r);
-        scene.add(floor);
+        const x = c * tileSize;
+        const y = r * tileSize;
 
         if (type === 1) {
-          // 木・障害物（壁ブロック）
-          const wallGeo = new THREE.BoxGeometry(0.9, 1, 0.9);
-          const wallMat = new THREE.MeshLambertMaterial({ color: 0x1b5e20 });
-          const wall = new THREE.Mesh(wallGeo, wallMat);
-          wall.position.set(c, 0.5, r);
-          scene.add(wall);
+          // 木・障害物
+          ctx.fillStyle = '#1b5e20';
+          ctx.fillRect(x + 2, y + 2, tileSize - 4, tileSize - 4);
         } else if (type >= 2 && type <= 4) {
-          // ミッションの宝球
-          const itemGeo = new THREE.SphereGeometry(0.3, 16, 16);
-          const itemMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
-          const item = new THREE.Mesh(itemGeo, itemMat);
-          item.position.set(c, 0.4, r);
-          scene.add(item);
-          itemMeshes[`${c}_${r}`] = item;
+          // ミッション宝球
+          ctx.fillStyle = '#ffd700';
+          ctx.beginPath();
+          ctx.arc(x + 16, y + 16, 8, 0, Math.PI * 2);
+          ctx.fill();
         } else if (type === 5) {
-          // ゴール（赤建物）
-          const goalGeo = new THREE.BoxGeometry(0.8, 1.2, 0.8);
-          const goalMat = new THREE.MeshLambertMaterial({ color: 0xe94560 });
-          const goal = new THREE.Mesh(goalGeo, goalMat);
-          goal.position.set(c, 0.6, r);
-          scene.add(goal);
+          // ゴール
+          ctx.fillStyle = '#e94560';
+          ctx.fillRect(x + 4, y + 4, tileSize - 8, tileSize - 8);
         }
       }
     }
 
-    // 荻田（プレイヤー）の3Dメッシュ
-    const playerGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.8, 16);
-    const playerMat = new THREE.MeshLambertMaterial({ color: 0x00f3ff });
-    playerMesh = new THREE.Mesh(playerGeo, playerMat);
-    updatePlayerPosition();
-    scene.add(playerMesh);
-
-    // ループ描画
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    }
-    animate();
-  }
-
-  function updatePlayerPosition() {
-    playerMesh.position.set(player.x, 0.5, player.y);
-    // カメラもプレイヤーを追従
-    camera.position.set(player.x, 10, player.y + 8);
-    camera.lookAt(player.x, 0, player.y);
+    // プレイヤー（荻田）
+    ctx.fillStyle = '#00f3ff';
+    ctx.fillRect(player.x * tileSize + 6, player.y * tileSize + 6, tileSize - 12, tileSize - 12);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(player.x * tileSize + 10, player.y * tileSize + 10, 4, 4);
+    ctx.fillRect(player.x * tileSize + 18, player.y * tileSize + 10, 4, 4);
   }
 
   function movePlayer(dx, dy) {
@@ -272,30 +239,36 @@
     if (map[newY][newX] !== 1) {
       player.x = newX;
       player.y = newY;
-      updatePlayerPosition();
+      playSe();
       checkEvent(newX, newY);
     }
+    drawMap();
   }
 
   function checkEvent(x, y) {
     const dialog = document.getElementById('dialog');
     const target = map[y][x];
 
-    if (target >= 2 && target <= 4) {
+    if (target === 2) {
       map[y][x] = 0;
       clearedMissions++;
-      if (itemMeshes[`${x}_${y}`]) {
-        scene.remove(itemMeshes[`${x}_${y}`]);
-      }
-      dialog.innerHTML = `<span style='color:#ffd700;'>【ミッション達成】</span><br>3Dのアイテム（宝球）を獲得した！`;
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション1完了】</span><br>公園で『落とし物の鍵』を拾った！";
+    } else if (target === 3) {
+      map[y][x] = 0;
+      clearedMissions++;
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション2完了】</span><br>路地裏の『暗号』を解読した！";
+    } else if (target === 4) {
+      map[y][x] = 0;
+      clearedMissions++;
+      dialog.innerHTML = "<span style='color:#ffd700;'>【ミッション3完了】</span><br>ボス猫を手懐けた！";
     } else if (target === 5) {
       if (clearedMissions >= 3) {
-        dialog.innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>3D空間のすべての謎を解き明かした！";
+        dialog.innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>すべてのミッションを達成してゴールに到達した！";
       } else {
-        dialog.innerHTML = "ゴールへの道は閉ざされている…<br>マップ上の光る宝球を3つ集めよう！";
+        dialog.innerHTML = "ゴールの扉は閉じられている…<br>マップ上の黄色い光を3つ集めよう！";
       }
     } else {
-      dialog.innerText = "3D空間を歩いて探索中…";
+      dialog.innerText = "歩いて街を探索中…";
     }
     document.getElementById('mission-count').textContent = clearedMissions;
   }
@@ -312,7 +285,7 @@
   document.getElementById('start-btn').addEventListener('click', () => {
     document.getElementById('title-screen').style.display = 'none';
     document.getElementById('game-container').style.display = 'block';
-    init3D();
+    drawMap();
   });
 </script>
 
