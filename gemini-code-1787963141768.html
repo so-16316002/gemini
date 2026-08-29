@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 - 戦闘レイアウト変更版</title>
+  <title>荻田の大冒険 - 3D戦闘（手前左＆奥右）版</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -50,13 +51,13 @@
       border: 2px solid #00f3ff;
       border-radius: 8px;
       padding: 10px 15px;
-      min-height: 80px;
+      min-height: 70px;
       font-size: 0.85rem;
       line-height: 1.5;
       margin-bottom: 10px;
     }
 
-    /* 戦闘画面（奥に敵・手前に自分） */
+    /* 3D戦闘画面オーバーレイ */
     #battle-overlay {
       display: none;
       position: absolute;
@@ -64,66 +65,42 @@
       left: 15px;
       right: 15px;
       height: 384px;
-      background-color: #0a0a14;
+      background-color: #05050a;
       border: 3px solid #ff0055;
       border-radius: 8px;
-      padding: 15px;
+      padding: 10px;
       flex-direction: column;
       justify-content: space-between;
       z-index: 10;
     }
 
-    /* 奥：敵エリア */
-    .enemy-area {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-top: 5px;
-    }
-    .enemy-info {
-      font-size: 0.9rem;
-      font-weight: bold;
-      margin-bottom: 5px;
-      text-align: center;
-    }
-    .enemy-icon {
-      width: 50px;
-      height: 50px;
-      background-color: #4caf50;
-      border-radius: 8px;
-    }
-
-    /* 手前：主人公エリア */
-    .hero-area {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #1f4068;
-      border: 1px solid #00f3ff;
-      padding: 8px 12px;
+    #battle-canvas {
+      width: 100%;
+      height: 200px;
+      background: #000;
       border-radius: 6px;
-      margin-bottom: 5px;
-    }
-    .hero-icon {
-      width: 32px;
-      height: 32px;
-      background-color: #00f3ff;
-      border-radius: 4px;
-    }
-    .hero-info {
-      font-size: 0.85rem;
-      font-weight: bold;
+      border: 1px solid #333;
     }
 
-    /* コマンドボタン */
+    .battle-ui {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #101828;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #00f3ff;
+      font-size: 0.8rem;
+    }
+
     .battle-btns {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 6px;
       width: 100%;
     }
     .battle-btn {
-      padding: 10px;
+      padding: 8px;
       background: #1f4068;
       color: #fff;
       border: 2px solid #00f3ff;
@@ -165,30 +142,17 @@
 
   <canvas id="map-canvas" width="384" height="384"></canvas>
 
-  <!-- 戦闘画面 -->
+  <!-- 3D戦闘画面 -->
   <div id="battle-overlay">
-    <!-- 【奥】敵エリア（Lvのみ表示、HPは隠す） -->
-    <div class="enemy-area">
-      <div class="enemy-info">
-        <span id="enemy-name">スライム</span> <span style="color:#ffcc00;">Lv.<span id="enemy-lv">1</span></span>
-      </div>
-      <div class="enemy-icon" id="enemy-icon"></div>
+    <canvas id="battle-canvas" width="420" height="200"></canvas>
+
+    <div class="battle-ui">
+      <div><span id="enemy-name">敵</span> <span style="color:#ffcc00;">Lv.<span id="enemy-lv">1</span></span></div>
+      <div>荻田 HP: <span id="b-hero-hp">30</span>/<span id="b-hero-maxhp">30</span></div>
     </div>
 
-    <div id="battle-msg" style="text-align:center; font-size: 0.8rem; color:#ffd700; margin: 5px 0;"></div>
+    <div id="battle-msg" style="text-align:center; font-size: 0.8rem; color:#ffd700; min-height: 1.2em;"></div>
 
-    <!-- 【手前】主人公エリア（LvとHPを表示） -->
-    <div class="hero-area">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <div class="hero-icon"></div>
-        <div>荻田</div>
-      </div>
-      <div class="hero-info">
-        Lv.<span id="b-hero-lv">1</span> | HP: <span id="b-hero-hp">30</span>/<span id="b-hero-maxhp">30</span>
-      </div>
-    </div>
-
-    <!-- 4つのコマンドボタン -->
     <div class="battle-btns">
       <button class="battle-btn" onclick="cmdFight()">⚔️ 戦う</button>
       <button class="battle-btn" onclick="cmdDefend()">🛡️ 防御</button>
@@ -197,7 +161,7 @@
     </div>
   </div>
 
-  <div id="dialog">【始まりの地】<br>中央下からスタート！奥の敵に挑もう。</div>
+  <div id="dialog">【始まりの地】<br>中央下からスタート！敵にぶつかって戦闘を開始しよう。</div>
 
   <div class="controls">
     <div class="empty"></div>
@@ -215,6 +179,8 @@
 <script>
   const canvas = document.getElementById('map-canvas');
   const ctx = canvas.getContext('2d');
+  const bCanvas = document.getElementById('battle-canvas');
+  const bCtx = bCanvas.getContext('2d');
   const tileSize = 32;
 
   const mapWidth = 30;
@@ -231,6 +197,10 @@
   let currentEnemy = null;
   let currentEnemyPos = null;
   let isTurnProcessing = false;
+
+  // アニメーション用変数
+  let heroAnimOffset = { x: 0, y: 0 };
+  let animFrameId = null;
 
   const state = {
     hasMap: false,
@@ -260,8 +230,6 @@
     document.getElementById('player-hp').textContent = player.hp;
     document.getElementById('gold-val').textContent = player.gold;
 
-    // 戦闘画面内の主人公ステータスも更新
-    document.getElementById('b-hero-lv').textContent = player.lv;
     document.getElementById('b-hero-hp').textContent = player.hp;
     document.getElementById('b-hero-maxhp').textContent = player.maxHp;
   }
@@ -328,7 +296,7 @@
     const dialog = document.getElementById('dialog');
 
     if (type === 2) {
-      dialog.innerHTML = "<strong>村人:</strong><br>「敵の正確な体力（HP）は分からない。Lvを目安にして戦おう！」";
+      dialog.innerHTML = "<strong>村人:</strong><br>「3Dバトルでは手前左が自分、奥右が敵だ！コマンドで攻略しよう。」";
     } else if (type === 6) {
       startBattle("野良スライム", 1, 15, 4, 20, 15, "#4caf50", x, y);
     } else if (type === 3) {
@@ -349,31 +317,130 @@
     }
   }
 
+  // --- 3D 擬似レンダリング処理 ---
+  function render3DBattle() {
+    bCtx.clearRect(0, 0, bCanvas.width, bCanvas.height);
+
+    // 背景（グラデーション＆グリッド床）
+    const grad = bCtx.createLinearGradient(0, 0, 0, bCanvas.height);
+    grad.addColorStop(0, '#0f172a');
+    grad.addColorStop(0.5, '#1e293b');
+    grad.addColorStop(1, '#0f172a');
+    bCtx.fillStyle = grad;
+    bCtx.fillRect(0, 0, bCanvas.width, bCanvas.height);
+
+    // 遠近グリッド床
+    bCtx.strokeStyle = 'rgba(0, 243, 255, 0.15)';
+    bCtx.lineWidth = 1;
+    const vanishY = 70;
+    for (let i = -5; i <= 5; i++) {
+      bCtx.beginPath();
+      bCtx.moveTo(bCanvas.width / 2 + i * 15, vanishY);
+      bCtx.lineTo(bCanvas.width / 2 + i * 80, bCanvas.height);
+      bCtx.stroke();
+    }
+    for (let y = vanishY; y < bCanvas.height; y += 25) {
+      bCtx.beginPath();
+      bCtx.moveTo(0, y);
+      bCtx.lineTo(bCanvas.width, y);
+      bCtx.stroke();
+    }
+
+    // 1. 奥右：敵（小さめ・奥の配置）
+    const enemyX = 290;
+    const enemyY = 85;
+    const enemySize = 42;
+
+    // 敵の影
+    bCtx.fillStyle = 'rgba(0,0,0,0.5)';
+    bCtx.beginPath();
+    bCtx.ellipse(enemyX, enemyY + enemySize, enemySize * 0.7, enemySize * 0.25, 0, 0, Math.PI * 2);
+    bCtx.fill();
+
+    // 敵本体
+    bCtx.fillStyle = currentEnemy ? currentEnemy.color : '#ff0055';
+    bCtx.fillRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
+    bCtx.strokeStyle = '#ffffff';
+    bCtx.lineWidth = 2;
+    bCtx.strokeRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
+
+    // 2. 手前左：主人公（大きめ・手前の配置）
+    const heroX = 110 + heroAnimOffset.x;
+    const heroY = 145 + heroAnimOffset.y;
+    const heroSize = 58;
+
+    // 主人公の影
+    bCtx.fillStyle = 'rgba(0,0,0,0.5)';
+    bCtx.beginPath();
+    bCtx.ellipse(110, 145 + heroSize, heroSize * 0.7, heroSize * 0.25, 0, 0, Math.PI * 2);
+    bCtx.fill();
+
+    // 主人公本体（荻田）
+    bCtx.fillStyle = '#00f3ff';
+    bCtx.fillRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+    bCtx.strokeStyle = '#ffffff';
+    bCtx.lineWidth = 2;
+    bCtx.strokeRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+
+    // 目（奥右を向く視線）
+    bCtx.fillStyle = '#000';
+    bCtx.fillRect(heroX + 8, heroY - 12, 6, 12);
+    bCtx.fillRect(heroX + 20, heroY - 12, 6, 12);
+
+    animFrameId = requestAnimationFrame(render3DBattle);
+  }
+
   function startBattle(name, lv, hp, atk, rewardGold, rewardExp, color, x, y, isBoss = false, isFinal = false) {
-    currentEnemy = { name, lv, hp, maxHp: hp, atk, rewardGold, rewardExp, isBoss, isFinal };
+    currentEnemy = { name, lv, hp, maxHp: hp, atk, rewardGold, rewardExp, color, isBoss, isFinal };
     currentEnemyPos = { x, y };
     isTurnProcessing = false;
+    heroAnimOffset = { x: 0, y: 0 };
 
     document.getElementById('enemy-name').textContent = name;
     document.getElementById('enemy-lv').textContent = lv;
-    document.getElementById('enemy-icon').style.backgroundColor = color;
     document.getElementById('battle-msg').textContent = `${name} (Lv.${lv}) が現れた！`;
     
     updateStatusUI();
     document.getElementById('battle-overlay').style.display = 'flex';
+    
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    render3DBattle();
+  }
+
+  // 攻撃時の踏み込みアニメーション
+  function playAttackAnimation(callback) {
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      if (step <= 5) {
+        // 奥右方向へ移動
+        heroAnimOffset.x += 18;
+        heroAnimOffset.y -= 7;
+      } else if (step <= 10) {
+        // 戻る
+        heroAnimOffset.x -= 18;
+        heroAnimOffset.y += 7;
+      } else {
+        clearInterval(interval);
+        heroAnimOffset = { x: 0, y: 0 };
+        callback();
+      }
+    }, 30);
   }
 
   function cmdFight() {
     if (isTurnProcessing || !currentEnemy) return;
     isTurnProcessing = true;
 
-    const dmg = player.atk + Math.floor(Math.random() * 3);
-    currentEnemy.hp = Math.max(0, currentEnemy.hp - dmg);
+    playAttackAnimation(() => {
+      const dmg = player.atk + Math.floor(Math.random() * 3);
+      currentEnemy.hp = Math.max(0, currentEnemy.hp - dmg);
 
-    if (checkEnemyDefeated()) return;
+      if (checkEnemyDefeated()) return;
 
-    const enemyDmg = Math.max(1, currentEnemy.atk + Math.floor(Math.random() * 2));
-    applyDamageToPlayer(enemyDmg, `荻田の攻撃！ ${dmg} のダメージ！ 反撃で ${enemyDmg} 受けた！`);
+      const enemyDmg = Math.max(1, currentEnemy.atk + Math.floor(Math.random() * 2));
+      applyDamageToPlayer(enemyDmg, `荻田の攻撃！ ${dmg} のダメージ！ 反撃で ${enemyDmg} 受けた！`);
+    });
   }
 
   function cmdDefend() {
@@ -406,9 +473,15 @@
     if (isTurnProcessing || !currentEnemy) return;
     document.getElementById('battle-msg').textContent = "逃げ出した！";
     setTimeout(() => {
-      document.getElementById('battle-overlay').style.display = 'none';
-      currentEnemy = null;
+      closeBattle();
     }, 600);
+  }
+
+  function closeBattle() {
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    document.getElementById('battle-overlay').style.display = 'none';
+    currentEnemy = null;
+    drawMap();
   }
 
   function checkEnemyDefeated() {
@@ -430,12 +503,10 @@
       if (currentEnemy.isBoss) state.hasMap = true;
 
       setTimeout(() => {
-        document.getElementById('battle-overlay').style.display = 'none';
         if (currentEnemy.isFinal) {
           document.getElementById('dialog').innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>かつての師匠・勝田を撃破した！";
         }
-        currentEnemy = null;
-        drawMap();
+        closeBattle();
       }, 1200);
       return true;
     }
@@ -451,8 +522,7 @@
       player.hp = player.maxHp;
       updateStatusUI();
       setTimeout(() => {
-        document.getElementById('battle-overlay').style.display = 'none';
-        currentEnemy = null;
+        closeBattle();
       }, 1500);
     } else {
       document.getElementById('battle-msg').textContent = msg;
