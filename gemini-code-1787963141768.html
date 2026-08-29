@@ -3,21 +3,90 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の冒険 - Ogita's Adventure</title>
+  <title>荻田の大冒険</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
       padding: 20px;
-      background-color: #1a1a2e;
+      background-color: #05050a;
       color: #e0e0e0;
       font-family: 'Hiragino Kaku Gothic ProN', 'メイリオ', sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
+      overflow: hidden;
     }
+
+    /* --- タイトル画面スタイル --- */
+    #title-screen {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 600px;
+      padding: 20px;
+    }
+
+    .title-logo {
+      font-size: 3rem;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 
+        0 0 5px #fff,
+        0 0 10px #fff,
+        0 0 20px #ff007f,
+        0 0 30px #ff007f,
+        0 0 40px #ff007f;
+      margin-bottom: 40px;
+      animation: dropDown 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    @keyframes dropDown {
+      0% { transform: translateY(-200px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+
+    .press-start {
+      font-size: 1.2rem;
+      color: #00f3ff;
+      text-shadow: 0 0 8px #00f3ff;
+      margin-bottom: 30px;
+      letter-spacing: 2px;
+      animation: blink 1.2s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    .btn-neon {
+      background: transparent;
+      color: #00ff66;
+      font-size: 1.2rem;
+      font-weight: bold;
+      padding: 14px 40px;
+      border: 2px solid #00ff66;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 0 10px #00ff66, inset 0 0 10px #00ff66;
+      text-shadow: 0 0 5px #00ff66;
+      transition: all 0.2s ease;
+    }
+
+    .btn-neon:hover {
+      background: #00ff66;
+      color: #05050a;
+      box-shadow: 0 0 20px #00ff66, inset 0 0 20px #00ff66;
+    }
+
+    /* --- 本編ゲーム画面スタイル --- */
     #game-container {
+      display: none; /* 最初は非表示 */
       width: 100%;
       max-width: 600px;
       background-color: #16213e;
@@ -48,7 +117,7 @@
       grid-template-columns: 1fr 1fr;
       gap: 10px;
     }
-    button {
+    .game-btn {
       background-color: #e94560;
       color: #fff;
       border: none;
@@ -59,12 +128,19 @@
       cursor: pointer;
       transition: background-color 0.2s;
     }
-    button:hover { background-color: #ff6b81; }
-    button:disabled { background-color: #555; cursor: not-allowed; }
+    .game-btn:hover { background-color: #ff6b81; }
   </style>
 </head>
 <body>
 
+<!-- タイトル画面 -->
+<div id="title-screen">
+  <div class="title-logo">荻田の大冒険</div>
+  <div class="press-start">- PRESS START -</div>
+  <button class="btn-neon" id="start-btn">最初から</button>
+</div>
+
+<!-- 本編ゲーム画面 -->
 <div id="game-container">
   <div class="header">
     <div>主人公: <strong>荻田</strong></div>
@@ -72,31 +148,75 @@
     <div>所持金: <span id="gold" class="status-val">500</span> 円</div>
   </div>
 
-  <div id="screen">
-    ゲームを読み込んでいます...
-  </div>
-
+  <div id="screen">読み込み中...</div>
   <div id="choices" class="choices-grid"></div>
 </div>
 
 <script>
-  // ゲームの状態管理
+  // --- オーディオ制御（Web Audio API） ---
+  let audioCtx = null;
+  let bgmInterval = null;
+
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  }
+
+  // ピコッ音
+  function playSe() {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.2);
+  }
+
+  // BGM
+  function startBgm() {
+    if (bgmInterval) return;
+    initAudio();
+    const notes = [261.63, 329.63, 392.00, 523.25];
+    let step = 0;
+    bgmInterval = setInterval(() => {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(notes[step % notes.length], audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.25);
+      step++;
+    }, 300);
+  }
+
+  window.addEventListener('click', () => { startBgm(); }, { once: true });
+
+  // --- ゲーム本編ロジック ---
   const state = {
     hp: 100,
     maxHp: 100,
     gold: 500,
-    inBattle: false,
     enemyHp: 0,
     enemyName: ""
   };
 
-  // 画面の更新
   function updateStatus() {
     document.getElementById('hp').textContent = state.hp;
     document.getElementById('gold').textContent = state.gold;
   }
 
-  // テキストと選択肢の表示処理
   function render(text, choices) {
     document.getElementById('screen').innerHTML = text;
     const choicesContainer = document.getElementById('choices');
@@ -104,17 +224,18 @@
     
     choices.forEach(c => {
       const btn = document.createElement('button');
+      btn.className = 'game-btn';
       btn.textContent = c.text;
-      btn.onclick = c.action;
+      btn.onclick = () => {
+        playSe();
+        c.action();
+      };
       choicesContainer.appendChild(btn);
     });
     updateStatus();
   }
 
-  // --- シーン定義 ---
-
   function sceneTown() {
-    state.inBattle = false;
     render(
       "【普通の街・駅前】<br>荻田はいつもの街の駅前にいる。どこへ行こうか？",
       [
@@ -129,9 +250,7 @@
   function sceneWalk() {
     render(
       "【商店街】<br>商店街を歩いていると、美味しそうな匂いがしてきた。平和な一日だ。",
-      [
-        { text: "駅前に戻る", action: sceneTown }
-      ]
+      [{ text: "駅前に戻る", action: sceneTown }]
     );
   }
 
@@ -166,10 +285,7 @@
     ]);
   }
 
-  // --- バトルシステム ---
-
   function startBattle() {
-    state.inBattle = true;
     state.enemyName = "野良カラス";
     state.enemyHp = 40;
     battleTurn("凶暴な「野良カラス」が襲いかかってきた！");
@@ -186,7 +302,7 @@
 
     if (state.hp <= 0) {
       render("【ゲームオーバー】<br>荻田は倒れてしまった…", [
-        { text: "やり直す", action: () => { state.hp = 100; state.gold = 500; sceneTown(); } }
+        { text: "タイトルへ戻る", action: () => location.reload() }
       ]);
       return;
     }
@@ -220,7 +336,6 @@
     state.enemyHp -= damage;
 
     if (state.enemyHp > 0) {
-      // 敵の反撃
       const enemyDamage = Math.floor(Math.random() * 10) + 5;
       state.hp -= enemyDamage;
       msg += `<br>野良カラスのつつく攻撃！荻田は${enemyDamage}のダメージを受けた！`;
@@ -229,8 +344,13 @@
     battleTurn(msg);
   }
 
-  // ゲームスタート
-  sceneTown();
+  // --- スタートボタンの処理 ---
+  document.getElementById('start-btn').addEventListener('click', () => {
+    playSe();
+    document.getElementById('title-screen').style.display = 'none';
+    document.getElementById('game-container').style.display = 'block';
+    sceneTown();
+  });
 </script>
 
 </body>
