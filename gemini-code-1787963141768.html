@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 - イベントシステム</title>
+  <title>荻田の大冒険 - 戦闘システム追加版</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -27,12 +27,13 @@
       border-radius: 12px;
       padding: 15px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      position: relative;
     }
     .header {
       display: flex;
       justify-content: space-between;
       margin-bottom: 10px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
     
     #map-canvas {
@@ -44,17 +45,62 @@
       image-rendering: pixelated;
     }
 
-    /* 会話ウィンドウ */
+    /* 会話・情報メッセージ */
     #dialog {
       background-color: #0f3460;
       border: 2px solid #00f3ff;
       border-radius: 8px;
       padding: 10px 15px;
       min-height: 80px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       line-height: 1.5;
       margin-bottom: 10px;
     }
+
+    /* 戦闘画面オーバーレイ */
+    #battle-overlay {
+      display: none;
+      position: absolute;
+      top: 50px;
+      left: 15px;
+      right: 15px;
+      height: 384px;
+      background-color: #0a0a14;
+      border: 3px solid #ff0055;
+      border-radius: 8px;
+      padding: 20px;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+    .enemy-display {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .enemy-icon {
+      width: 60px;
+      height: 60px;
+      background-color: #4caf50;
+      margin: 0 auto 10px auto;
+      border-radius: 8px;
+    }
+    .battle-btns {
+      display: flex;
+      gap: 15px;
+      width: 100%;
+    }
+    .battle-btn {
+      flex: 1;
+      padding: 12px;
+      background: #1f4068;
+      color: #fff;
+      border: 2px solid #00f3ff;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .battle-btn:active { background: #00f3ff; color: #000; }
 
     .controls {
       display: grid;
@@ -81,13 +127,27 @@
 
 <div id="game-container">
   <div class="header">
-    <div>主人公: <strong>荻田</strong></div>
+    <div>荻田 Lv.<span id="player-lv">1</span> (HP: <span id="player-hp">30</span>/30)</div>
     <div>所持金: <span id="gold-val" style="color:#ffd700; font-weight:bold;">0</span> G</div>
   </div>
 
   <canvas id="map-canvas" width="384" height="384"></canvas>
 
-  <div id="dialog">【始まりの地】<br>まずは近くの村人やモンスターに近づいてみよう。</div>
+  <!-- 戦闘画面 -->
+  <div id="battle-overlay">
+    <div class="enemy-display">
+      <div class="enemy-icon" id="enemy-icon"></div>
+      <h3 id="enemy-name" style="margin: 5px 0;">スライム</h3>
+      <div>HP: <span id="enemy-hp">15</span></div>
+    </div>
+    <div id="battle-msg" style="text-align:center; font-size: 0.85rem; color:#ffd700;"></div>
+    <div class="battle-btns">
+      <button class="battle-btn" onclick="attackEnemy()">攻撃</button>
+      <button class="battle-btn" onclick="runAway()">逃げる</button>
+    </div>
+  </div>
+
+  <div id="dialog">【始まりの地】<br>緑の雑魚モンスターを倒してお金を稼ごう！</div>
 
   <div class="controls">
     <div class="empty"></div>
@@ -111,17 +171,23 @@
   const mapHeight = 30;
   const viewGrid = 12;
 
-  const player = { x: 5, y: 5 };
-  let gold = 0;
-
-  // フラグ管理
-  const state = {
-    hasMap: false,       // 地図を持っているか
-    visitedHome: false,  // 故郷の村を調べたか
-    defeatedKatsuta: false // 勝田を倒したか
+  // ステータス
+  const player = {
+    x: 5, y: 5,
+    lv: 1, hp: 30, maxHp: 30, atk: 8,
+    gold: 0, exp: 0
   };
 
-  // 0:平地, 1:壁, 2:村人, 3:地図持ちモンスター, 4:思い出の品, 5:師匠・勝田
+  let currentEnemy = null;
+  let currentEnemyPos = null;
+
+  const state = {
+    hasMap: false,
+    visitedHome: false,
+    defeatedKatsuta: false
+  };
+
+  // 0:平地, 1:壁, 2:村人, 3:地図持ち中ボス, 4:思い出の品, 5:勝田, 6:雑魚モンスター
   const map = Array.from({ length: mapHeight }, (_, r) =>
     Array.from({ length: mapWidth }, (_, c) => {
       if (r === 0 || r === mapHeight - 1 || c === 0 || c === mapWidth - 1) return 1;
@@ -129,11 +195,22 @@
     })
   );
 
-  // イベントオブジェクトの配置
-  map[5][7] = 2;    // 村人（始まりの地）
-  map[8][10] = 3;   // 地図を持った敵（中ボス）
-  map[15][15] = 4;  // 故郷の村（思い出の品）
-  map[25][25] = 5;  // 別れの地（師匠・勝田）
+  // オブジェクト配置
+  map[5][7] = 2;    // 村人
+  map[8][10] = 3;   // 地図持ち中ボス
+  map[15][15] = 4;  // 思い出の品
+  map[25][25] = 5;  // 勝田
+
+  // 雑魚モンスターを数体配置
+  map[4][8] = 6;
+  map[7][4] = 6;
+  map[10][6] = 6;
+
+  function updateStatusUI() {
+    document.getElementById('player-lv').textContent = player.lv;
+    document.getElementById('player-hp').textContent = player.hp;
+    document.getElementById('gold-val').textContent = player.gold;
+  }
 
   function drawMap() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -161,41 +238,42 @@
         ctx.fillRect(screenX, screenY, tileSize, tileSize);
 
         if (type === 1) {
-          ctx.fillStyle = '#1b5e20'; // 外壁
-          ctx.fillRect(screenX, screenY, tileSize, tileSize);
+          ctx.fillStyle = '#1b5e20';
         } else if (type === 2) {
-          ctx.fillStyle = '#ffb74d'; // 村人（オレンジ）
-          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
+          ctx.fillStyle = '#ffb74d'; // 村人
         } else if (type === 3) {
-          ctx.fillStyle = '#e53935'; // 地図持ちモンスター（赤）
-          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
+          ctx.fillStyle = '#e53935'; // 中ボス（赤）
         } else if (type === 4) {
-          ctx.fillStyle = '#ba68c8'; // 思い出の品（紫）
-          ctx.fillRect(screenX + 6, screenY + 6, tileSize - 12, tileSize - 12);
+          ctx.fillStyle = '#ba68c8'; // 思い出の品
         } else if (type === 5) {
-          ctx.fillStyle = '#ff1744'; // 勝田（濃い赤）
-          ctx.fillRect(screenX + 2, screenY + 2, tileSize - 4, tileSize - 4);
+          ctx.fillStyle = '#ff1744'; // 勝田
+        } else if (type === 6) {
+          ctx.fillStyle = '#4caf50'; // 雑魚モンスター（緑）
+        }
+
+        if (type !== 0) {
+          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
         }
       }
     }
 
-    // プレイヤー（荻田）
+    // プレイヤー
     const centerPos = Math.floor(viewGrid / 2) * tileSize;
     ctx.fillStyle = '#00f3ff';
     ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
   }
 
   function movePlayer(dx, dy) {
+    if (currentEnemy) return; // 戦闘中は移動不可
+
     const newX = player.x + dx;
     const newY = player.y + dy;
-
-    // 壁(1)以外、かつイベントキャラに重ならないように移動
     const target = map[newY][newX];
+
     if (target === 0) {
       player.x = newX;
       player.y = newY;
     } else {
-      // キャラやオブジェクトに接触したらイベント発生
       triggerEvent(target, newX, newY);
     }
     drawMap();
@@ -205,42 +283,113 @@
     const dialog = document.getElementById('dialog');
 
     if (type === 2) {
-      // 村人との会話
-      dialog.innerHTML = "<strong>村人:</strong><br>「東に強い魔物がいるらしい。地図を持っていれば故郷の村へ行けるのだが…」";
+      dialog.innerHTML = "<strong>村人:</strong><br>「緑のモンスターを倒してお金を溜めよう。準備ができたら赤の中ボスに挑むんだ！」";
+    } else if (type === 6) {
+      // 雑魚モンスターとの戦闘開始
+      startBattle("野良スライム", 15, 4, 20, 15, "#4caf50", x, y);
     } else if (type === 3) {
-      // 地図持ちモンスター
-      state.hasMap = true;
-      map[y][x] = 0; // 倒して消滅
-      gold += 100;
-      document.getElementById('gold-val').textContent = gold;
-      dialog.innerHTML = "<span style='color:#ffd700;'>【強敵撃破！】</span><br>100Gと『故郷への地図』を入手した！南東の故郷の村へ進めるようになった。";
+      // 中ボスとの戦闘開始
+      startBattle("地図持ちガード", 40, 8, 100, 50, "#e53935", x, y, true);
     } else if (type === 4) {
-      // 故郷の村（思い出の品）
       if (!state.hasMap) {
         dialog.innerHTML = "<strong>システム:</strong><br>地図がないため、まだ進めない…";
       } else {
         state.visitedHome = true;
-        dialog.innerHTML = "<span style='color:#ba68c8;'>【故郷の思い出】</span><br>かつて師匠・勝田と修行した木刀を発見した…『勝田は最果ての地で待つ』と刻まれている！";
+        dialog.innerHTML = "<span style='color:#ba68c8;'>【故郷の思い出】</span><br>木刀を発見した！『勝田は最果ての地（南東）で待つ』";
       }
     } else if (type === 5) {
-      // 勝田（ラストボス）
       if (!state.visitedHome) {
-        dialog.innerHTML = "<strong>勝田:</strong><br>「まだ来るときではない…故郷で己の原点を見つめ直してこい。」";
+        dialog.innerHTML = "<strong>勝田:</strong><br>「故郷で己の原点を見つめ直してこい。」";
       } else {
-        state.defeatedKatsuta = true;
-        map[y][x] = 0;
-        dialog.innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>かつての師匠・勝田との死闘を制した！荻田の旅は幕を閉じた。";
+        // ラストボス戦
+        startBattle("師匠・勝田", 80, 12, 0, 200, "#ff1744", x, y, false, true);
       }
     }
   }
 
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp' || e.key === 'w') movePlayer(0, -1);
-    if (e.key === 'ArrowDown' || e.key === 's') movePlayer(0, 1);
-    if (e.key === 'ArrowLeft' || e.key === 'a') movePlayer(-1, 0);
-    if (e.key === 'ArrowRight' || e.key === 'd') movePlayer(1, 0);
-  });
+  // 戦闘処理
+  function startBattle(name, hp, atk, rewardGold, rewardExp, color, x, y, isBoss = false, isFinal = false) {
+    currentEnemy = { name, hp, maxHp: hp, atk, rewardGold, rewardExp, isBoss, isFinal };
+    currentEnemyPos = { x, y };
 
+    document.getElementById('enemy-name').textContent = name;
+    document.getElementById('enemy-hp').textContent = hp;
+    document.getElementById('enemy-icon').style.backgroundColor = color;
+    document.getElementById('battle-msg').textContent = `${name} が現れた！`;
+    document.getElementById('battle-overlay').style.display = 'flex';
+  }
+
+  function attackEnemy() {
+    if (!currentEnemy) return;
+
+    // プレイヤーの攻撃
+    const dmg = player.atk + Math.floor(Math.random() * 3);
+    currentEnemy.hp -= dmg;
+    if (currentEnemy.hp < 0) currentEnemy.hp = 0;
+    document.getElementById('enemy-hp').textContent = currentEnemy.hp;
+
+    if (currentEnemy.hp <= 0) {
+      // 勝利
+      document.getElementById('battle-msg').textContent = `撃破！ ${currentEnemy.rewardGold}G と ${currentEnemy.rewardExp}EXP を獲得！`;
+      player.gold += currentEnemy.rewardGold;
+      player.exp += currentEnemy.rewardExp;
+
+      // レベルアップ判定
+      if (player.exp >= player.lv * 30) {
+        player.lv++;
+        player.maxHp += 10;
+        player.hp = player.maxHp;
+        player.atk += 3;
+      }
+
+      updateStatusUI();
+
+      // マップから敵を消去
+      if (currentEnemyPos) {
+        map[currentEnemyPos.y][currentEnemyPos.x] = 0;
+      }
+
+      if (currentEnemy.isBoss) state.hasMap = true;
+
+      setTimeout(() => {
+        document.getElementById('battle-overlay').style.display = 'none';
+        if (currentEnemy.isFinal) {
+          document.getElementById('dialog').innerHTML = "<span style='color:#00ff66; font-size:1.1rem;'>🎉 GAME CLEAR 🎉</span><br>勝田を倒し、世界に平和を取り戻した！";
+        }
+        currentEnemy = null;
+        drawMap();
+      }, 1200);
+      return;
+    }
+
+    // 敵の反撃
+    const enemyDmg = currentEnemy.atk + Math.floor(Math.random() * 2);
+    player.hp -= enemyDmg;
+    if (player.hp < 0) player.hp = 0;
+    updateStatusUI();
+
+    if (player.hp <= 0) {
+      document.getElementById('battle-msg').textContent = "荻田は倒れてしまった…（HP全回復で復活）";
+      player.hp = player.maxHp;
+      updateStatusUI();
+      setTimeout(() => {
+        document.getElementById('battle-overlay').style.display = 'none';
+        currentEnemy = null;
+      }, 1500);
+    } else {
+      document.getElementById('battle-msg').textContent = `荻田の攻撃！ ${dmg} のダメージ！ 反撃で ${enemyDmg} 受けた！`;
+    }
+  }
+
+  function runAway() {
+    document.getElementById('battle-msg').textContent = "逃げ出した！";
+    setTimeout(() => {
+      document.getElementById('battle-overlay').style.display = 'none';
+      currentEnemy = null;
+    }, 600);
+  }
+
+  updateStatusUI();
   drawMap();
 </script>
 
