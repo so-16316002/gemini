@@ -254,7 +254,7 @@ loadImage('hero', heroImageData);
     document.getElementById('b-hero-maxhp').textContent = player.maxHp;
   }
 
-  function drawMap() {
+function drawMap() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const offsetX = player.x - Math.floor(viewGrid / 2);
@@ -291,6 +291,7 @@ loadImage('hero', heroImageData);
       }
     }
 
+    // 主人公描画（青い縁を削除）
     const centerPos = Math.floor(viewGrid / 2) * tileSize;
     const pSize = tileSize - 4;
     const px = centerPos + tileSize / 2;
@@ -306,17 +307,13 @@ loadImage('hero', heroImageData);
       ctx.clip();
 
       ctx.drawImage(heroData.img, px - pSize / 2, py - pSize / 2, pSize, pSize);
-
-      ctx.strokeStyle = '#00f3ff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
       ctx.restore();
     } else {
       ctx.fillStyle = '#00f3ff';
       ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
     }
   }
-
+  
   function movePlayer(dx, dy) {
     if (currentEnemy) return;
 
@@ -358,7 +355,7 @@ loadImage('hero', heroImageData);
     }
   }
 
-  function render3DBattle() {
+function render3DBattle() {
     bCtx.clearRect(0, 0, bCanvas.width, bCanvas.height);
 
     const grad = bCtx.createLinearGradient(0, 0, 0, bCanvas.height);
@@ -417,10 +414,6 @@ loadImage('hero', heroImageData);
       bCtx.clip();
 
       bCtx.drawImage(heroData.img, heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
-      
-      bCtx.strokeStyle = '#00f3ff';
-      bCtx.lineWidth = 3;
-      bCtx.stroke();
       bCtx.restore();
     } else {
       bCtx.fillStyle = '#00f3ff';
@@ -432,7 +425,7 @@ loadImage('hero', heroImageData);
 
     animFrameId = requestAnimationFrame(render3DBattle);
   }
-
+  
   function startBattle(name, lv, hp, atk, rewardGold, rewardExp, color, x, y, isBoss = false, isFinal = false) {
     currentEnemy = { name, lv, hp, maxHp: hp, atk, rewardGold, rewardExp, color, isBoss, isFinal };
     currentEnemyPos = { x, y };
