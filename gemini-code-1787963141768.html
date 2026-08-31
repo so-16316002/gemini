@@ -246,7 +246,7 @@
     document.getElementById('b-hero-maxhp').textContent = player.maxHp;
   }
 
-  function drawMap() {
+ function drawMap() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const offsetX = player.x - Math.floor(viewGrid / 2);
@@ -265,6 +265,55 @@
           continue;
         }
 
+        const type = map[mapY][mapX];
+
+        ctx.fillStyle = '#388e3c';
+        ctx.fillRect(screenX, screenY, tileSize, tileSize);
+
+        if (type === 1) ctx.fillStyle = '#1b5e20';
+        else if (type === 2) ctx.fillStyle = '#ffb74d';
+        else if (type === 3) ctx.fillStyle = '#e53935';
+        else if (type === 4) ctx.fillStyle = '#ba68c8';
+        else if (type === 5) ctx.fillStyle = '#ff1744';
+        else if (type === 6) ctx.fillStyle = '#4caf50';
+
+        if (type !== 0) {
+          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
+        }
+      }
+    }
+
+    // --- マップ中央の主人公描画（hero.jpg 表示対応） ---
+    const centerPos = Math.floor(viewGrid / 2) * tileSize;
+    const pSize = tileSize - 4; // 描画サイズ
+    const px = centerPos + tileSize / 2;
+    const py = centerPos + tileSize / 2;
+
+    const heroImgData = images['hero'];
+    if (heroImgData && heroImgData.loaded) {
+      ctx.save();
+      
+      // 円形に切り抜く
+      ctx.beginPath();
+      ctx.arc(px, py, pSize / 2, 0, Math.PI * 2, true);
+      ctx.closePath();
+      ctx.clip();
+
+      // hero.jpg を描画
+      ctx.drawImage(heroImgData.img, px - pSize / 2, py - pSize / 2, pSize, pSize);
+
+      // 青枠を付ける
+      ctx.strokeStyle = '#00f3ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.restore();
+    } else {
+      // 画像読み込み前の予備表示（青い四角）
+      ctx.fillStyle = '#00f3ff';
+      ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
+    }
+  }
         const type = map[mapY][mapX];
 
         ctx.fillStyle = '#388e3c';
