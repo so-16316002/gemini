@@ -184,7 +184,7 @@
     img.onload = () => { images[key].loaded = true; };
   }
 
-  // hero.png の名前に変更した写真をフォルダ内に置いてください
+  // hero.jpg を読み込む設定に変更
   loadImage('hero', 'hero.jpg');
   loadImage('slime', 'slime.png');
   loadImage('guard', 'guard.png');
@@ -329,7 +329,7 @@
     }
   }
 
-  // --- 3D 描画処理（写真の切り抜き対応） ---
+  // --- 3D 描画処理（hero.jpg 切り抜き対応） ---
   function render3DBattle() {
     bCtx.clearRect(0, 0, bCanvas.width, bCanvas.height);
 
@@ -379,7 +379,7 @@
       bCtx.strokeRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
     }
 
-    // 2. 手前左：主人公（荻田の写真・丸型くり抜き描画）
+    // 2. 手前左：主人公（hero.jpg の写真・丸型くり抜き描画）
     const heroX = 110 + heroAnimOffset.x;
     const heroY = 135 + heroAnimOffset.y;
     const heroSize = 72;
