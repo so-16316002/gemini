@@ -181,14 +181,11 @@
     const img = new Image();
     img.src = src;
     images[key] = { img: img, loaded: false };
-    img.onload = () => { 
-      images[key].loaded = true;
-      drawMap(); // 画像の読み込みが完了したらマップを再描画
-    };
+    img.onload = () => { images[key].loaded = true; };
   }
 
-  // hero.jpg を読み込む設定
-  loadImage('hero', 'hero.jpg');
+  // hero.png の名前に変更した写真をフォルダ内に置いてください
+  loadImage('hero', 'hero.png');
   loadImage('slime', 'slime.png');
   loadImage('guard', 'guard.png');
   loadImage('katsuta', 'katsuta.png');
@@ -286,36 +283,9 @@
       }
     }
 
-    // --- マップ中央の主人公描画（hero.jpg 表示） ---
     const centerPos = Math.floor(viewGrid / 2) * tileSize;
-    const pSize = tileSize - 4;
-    const px = centerPos + tileSize / 2;
-    const py = centerPos + tileSize / 2;
-
-    const heroImgData = images['hero'];
-    if (heroImgData && heroImgData.loaded) {
-      ctx.save();
-      
-      // 円形に切り抜き
-      ctx.beginPath();
-      ctx.arc(px, py, pSize / 2, 0, Math.PI * 2, true);
-      ctx.closePath();
-      ctx.clip();
-
-      // 画像の描画
-      ctx.drawImage(heroImgData.img, px - pSize / 2, py - pSize / 2, pSize, pSize);
-
-      // 青色の外枠
-      ctx.strokeStyle = '#00f3ff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.restore();
-    } else {
-      // 読み込み前のフォールバック表示
-      ctx.fillStyle = '#00f3ff';
-      ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
-    }
+    ctx.fillStyle = '#00f3ff';
+    ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
   }
 
   function movePlayer(dx, dy) {
@@ -338,7 +308,7 @@
     const dialog = document.getElementById('dialog');
 
     if (type === 2) {
-      dialog.innerHTML = "<strong>村人:</strong><br>「荻田の写真がマップ上や戦闘画面に丸型で登場するぞ！」";
+      dialog.innerHTML = "<strong>村人:</strong><br>「荻田の写真が円形に繰り抜かれて戦闘画面に登場するぞ！」";
     } else if (type === 6) {
       startBattle("野良スライム", 1, 15, 4, 20, 15, "#4caf50", 'slime', x, y);
     } else if (type === 3) {
@@ -359,7 +329,7 @@
     }
   }
 
-  // --- 3D 描画処理 ---
+  // --- 3D 描画処理（写真の切り抜き対応） ---
   function render3DBattle() {
     bCtx.clearRect(0, 0, bCanvas.width, bCanvas.height);
 
@@ -409,7 +379,7 @@
       bCtx.strokeRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
     }
 
-    // 2. 手前左：主人公（hero.jpg の写真・丸型切り抜き描画）
+    // 2. 手前左：主人公（荻田の写真・丸型くり抜き描画）
     const heroX = 110 + heroAnimOffset.x;
     const heroY = 135 + heroAnimOffset.y;
     const heroSize = 72;
@@ -423,6 +393,7 @@
     if (heroImgData && heroImgData.loaded) {
       bCtx.save();
       
+      // 円形パスで写真をくり抜く
       bCtx.beginPath();
       bCtx.arc(heroX, heroY, heroSize / 2, 0, Math.PI * 2, true);
       bCtx.closePath();
@@ -430,6 +401,7 @@
 
       bCtx.drawImage(heroImgData.img, heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
       
+      // 青く光る外枠
       bCtx.strokeStyle = '#00f3ff';
       bCtx.lineWidth = 3;
       bCtx.stroke();
