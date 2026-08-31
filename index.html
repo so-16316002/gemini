@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>荻田の大冒険 - 基本版</title>
+  <title>荻田の大冒険</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -174,83 +174,28 @@
 </div>
 
 <script>
-  // 画像の読み込み管理
-const images = {};
+  // --- 画像読み込み（エラー防止つき） ---
+  const images = {};
 
-function loadImage(key, src) {
-  const img = new Image();
-  img.src = src;
-  images[key] = { img: img, loaded: false, error: false };
-  
-  img.onload = () => {
-    images[key].loaded = true;
-    function drawMap() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  function loadImage(key, src) {
+    const img = new Image();
+    img.src = src;
+    images[key] = { img: img, loaded: false, error: false };
 
-    const offsetX = player.x - Math.floor(viewGrid / 2);
-    const offsetY = player.y - Math.floor(viewGrid / 2);
+    img.onload = () => {
+      images[key].loaded = true;
+      drawMap();
+    };
 
-    for (let r = 0; r < viewGrid; r++) {
-      for (let c = 0; c < viewGrid; c++) {
-        const mapX = offsetX + c;
-        const mapY = offsetY + r;
-        const screenX = c * tileSize;
-        const screenY = r * tileSize;
-
-        if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
-          ctx.fillStyle = '#05050a';
-          ctx.fillRect(screenX, screenY, tileSize, tileSize);
-          continue;
-        }
-
-        const type = map[mapY][mapX];
-
-        ctx.fillStyle = '#388e3c';
-        ctx.fillRect(screenX, screenY, tileSize, tileSize);
-
-        if (type === 1) ctx.fillStyle = '#1b5e20';
-        else if (type === 2) ctx.fillStyle = '#ffb74d';
-        else if (type === 3) ctx.fillStyle = '#e53935';
-        else if (type === 4) ctx.fillStyle = '#ba68c8';
-        else if (type === 5) ctx.fillStyle = '#ff1744';
-        else if (type === 6) ctx.fillStyle = '#4caf50';
-
-        if (type !== 0) {
-          ctx.fillRect(screenX + 4, screenY + 4, tileSize - 8, tileSize - 8);
-        }
-      }
-    }
-
-    // --- 主人公描画（hero.jpg があれば丸型画像、無ければ青い四角） ---
-    const centerPos = Math.floor(viewGrid / 2) * tileSize;
-    const pSize = tileSize - 4;
-    const px = centerPos + tileSize / 2;
-    const py = centerPos + tileSize / 2;
-
-    const heroData = images['hero'];
-
-    if (heroData && heroData.loaded && !heroData.error) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(px, py, pSize / 2, 0, Math.PI * 2, true);
-      ctx.closePath();
-      ctx.clip();
-
-      ctx.drawImage(heroData.img, px - pSize / 2, py - pSize / 2, pSize, pSize);
-
-      ctx.strokeStyle = '#00f3ff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.restore();
-    } else {
-      // 画像が読めない場合の予備表示（青い四角）
-      ctx.fillStyle = '#00f3ff';
-      ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
-    }
+    img.onerror = () => {
+      images[key].error = true;
+      drawMap();
+    };
   }
 
-// hero.jpg を読み込む（ファイルが存在しない場合も安全に処理されます）
-loadImage('hero', 'hero.jpg');
+  // hero.jpg を指定
+  loadImage('hero', 'hero.jpg');
+
   const canvas = document.getElementById('map-canvas');
   const ctx = canvas.getContext('2d');
   const bCanvas = document.getElementById('battle-canvas');
@@ -344,10 +289,31 @@ loadImage('hero', 'hero.jpg');
       }
     }
 
-    // 主人公（青い四角）の描画
+    // 主人公（hero.jpg 表示対応）
     const centerPos = Math.floor(viewGrid / 2) * tileSize;
-    ctx.fillStyle = '#00f3ff';
-    ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
+    const pSize = tileSize - 4;
+    const px = centerPos + tileSize / 2;
+    const py = centerPos + tileSize / 2;
+
+    const heroData = images['hero'];
+
+    if (heroData && heroData.loaded && !heroData.error) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(px, py, pSize / 2, 0, Math.PI * 2, true);
+      ctx.closePath();
+      ctx.clip();
+
+      ctx.drawImage(heroData.img, px - pSize / 2, py - pSize / 2, pSize, pSize);
+
+      ctx.strokeStyle = '#00f3ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#00f3ff';
+      ctx.fillRect(centerPos + 6, centerPos + 6, tileSize - 12, tileSize - 12);
+    }
   }
 
   function movePlayer(dx, dy) {
@@ -394,7 +360,6 @@ loadImage('hero', 'hero.jpg');
   function render3DBattle() {
     bCtx.clearRect(0, 0, bCanvas.width, bCanvas.height);
 
-    // 背景描画
     const grad = bCtx.createLinearGradient(0, 0, 0, bCanvas.height);
     grad.addColorStop(0, '#0f172a');
     grad.addColorStop(0.5, '#1e293b');
@@ -402,7 +367,6 @@ loadImage('hero', 'hero.jpg');
     bCtx.fillStyle = grad;
     bCtx.fillRect(0, 0, bCanvas.width, bCanvas.height);
 
-    // 床描画
     bCtx.strokeStyle = 'rgba(0, 243, 255, 0.15)';
     bCtx.lineWidth = 1;
     const vanishY = 70;
@@ -419,7 +383,6 @@ loadImage('hero', 'hero.jpg');
       bCtx.stroke();
     }
 
-    // 敵描画
     const enemyX = 290;
     const enemyY = 85;
     const enemySize = 54;
@@ -435,21 +398,36 @@ loadImage('hero', 'hero.jpg');
     bCtx.lineWidth = 2;
     bCtx.strokeRect(enemyX - enemySize / 2, enemyY - enemySize / 2, enemySize, enemySize);
 
-    // 主人公描画（青い四角）
     const heroX = 110 + heroAnimOffset.x;
     const heroY = 135 + heroAnimOffset.y;
-    const heroSize = 54;
+    const heroSize = 72;
 
     bCtx.fillStyle = 'rgba(0,0,0,0.5)';
     bCtx.beginPath();
     bCtx.ellipse(110, 135 + heroSize / 2, heroSize * 0.6, heroSize * 0.2, 0, 0, Math.PI * 2);
     bCtx.fill();
 
-    bCtx.fillStyle = '#00f3ff';
-    bCtx.fillRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
-    bCtx.strokeStyle = '#ffffff';
-    bCtx.lineWidth = 2;
-    bCtx.strokeRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+    const heroData = images['hero'];
+    if (heroData && heroData.loaded && !heroData.error) {
+      bCtx.save();
+      bCtx.beginPath();
+      bCtx.arc(heroX, heroY, heroSize / 2, 0, Math.PI * 2, true);
+      bCtx.closePath();
+      bCtx.clip();
+
+      bCtx.drawImage(heroData.img, heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+      
+      bCtx.strokeStyle = '#00f3ff';
+      bCtx.lineWidth = 3;
+      bCtx.stroke();
+      bCtx.restore();
+    } else {
+      bCtx.fillStyle = '#00f3ff';
+      bCtx.fillRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+      bCtx.strokeStyle = '#ffffff';
+      bCtx.lineWidth = 2;
+      bCtx.strokeRect(heroX - heroSize / 2, heroY - heroSize / 2, heroSize, heroSize);
+    }
 
     animFrameId = requestAnimationFrame(render3DBattle);
   }
