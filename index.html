@@ -425,7 +425,6 @@ function render3DBattle() {
 
     animFrameId = requestAnimationFrame(render3DBattle);
   }
-  
   function startBattle(name, lv, hp, atk, rewardGold, rewardExp, color, x, y, isBoss = false, isFinal = false) {
     currentEnemy = { name, lv, hp, maxHp: hp, atk, rewardGold, rewardExp, color, isBoss, isFinal };
     currentEnemyPos = { x, y };
