@@ -172,14 +172,15 @@
     <div class="empty"></div>
   </div>
 </div>
-
-<script>
-  // --- 画像読み込み（エラー防止つき） ---
+  
+ <script>
+  // 画像の読み込み処理（キャッシュ対策付き）
   const images = {};
 
   function loadImage(key, src) {
     const img = new Image();
-    img.src = src;
+    // キャッシュによる読み込み失敗を防ぐタイムスタンプ
+    img.src = src + '?v=' + new Date().getTime();
     images[key] = { img: img, loaded: false, error: false };
 
     img.onload = () => {
@@ -188,12 +189,13 @@
     };
 
     img.onerror = () => {
+      console.error('画像の読み込みに失敗しました:', src);
       images[key].error = true;
       drawMap();
     };
   }
 
-  // hero.jpg を指定
+  // hero.jpg を読み込み
   loadImage('hero', 'hero.jpg');
 
   const canvas = document.getElementById('map-canvas');
@@ -289,7 +291,6 @@
       }
     }
 
-    // 主人公（hero.jpg 表示対応）
     const centerPos = Math.floor(viewGrid / 2) * tileSize;
     const pSize = tileSize - 4;
     const px = centerPos + tileSize / 2;
