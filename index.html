@@ -174,29 +174,29 @@
 </div>
   
  <script>
-  // 画像の読み込み処理（キャッシュ対策付き）
-  const images = {};
+// 画像の読み込み処理（Base64データを直接指定）
+const images = {};
 
-  function loadImage(key, src) {
-    const img = new Image();
-    // キャッシュによる読み込み失敗を防ぐタイムスタンプ
-    img.src = src + '?v=' + new Date().getTime();
-    images[key] = { img: img, loaded: false, error: false };
+function loadBase64Image(key, base64Data) {
+  const img = new Image();
+  img.src = base64Data;
+  images[key] = { img: img, loaded: false, error: false };
 
-    img.onload = () => {
-      images[key].loaded = true;
-      drawMap();
-    };
+  img.onload = () => {
+    images[key].loaded = true;
+    drawMap();
+  };
 
-    img.onerror = () => {
-      console.error('画像の読み込みに失敗しました:', src);
-      images[key].error = true;
-      drawMap();
-    };
-  }
+  img.onerror = () => {
+    images[key].error = true;
+    drawMap();
+  };
+}
 
-  // hero.jpg を読み込み
-  loadImage('hero', 'hero.jpg');
+// 'data:image/jpeg;base64,...' の後ろにコピーした長い文字列を貼り付けます
+const heroBase64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ..."; 
+
+loadBase64Image('hero', heroBase64);
 
   const canvas = document.getElementById('map-canvas');
   const ctx = canvas.getContext('2d');
