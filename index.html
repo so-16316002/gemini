@@ -348,27 +348,42 @@
     }
   }
 
-  function drawCharacterBody(targetCtx, x, y, scale) {
+function drawCharacterBody(targetCtx, x, y, scale) {
     const heroData = images['hero'];
     const bodyWidth = 14 * scale;
     const bodyHeight = 12 * scale;
     const legWidth = 5 * scale;
     const legHeight = 8 * scale;
 
-    // 胴体 (赤い服)
-    targetCtx.fillStyle = '#e53935';
+    // --- 勇者のマント（背中） ---
+    targetCtx.fillStyle = '#d32f2f'; // なびく赤マント
+    targetCtx.fillRect(x - bodyWidth / 2 - 2 * scale, y, bodyWidth + 4 * scale, bodyHeight + 6 * scale);
+
+    // --- 鎧（プレートアーマー） ---
+    targetCtx.fillStyle = '#b0bec5'; // 胴体（銀色の鎧）
     targetCtx.fillRect(x - bodyWidth / 2, y + 2 * scale, bodyWidth, bodyHeight);
 
-    // ベルト
+    // 肩当て（ショルダーガード）
+    targetCtx.fillStyle = '#eceff1';
+    targetCtx.fillRect(x - bodyWidth / 2 - 3 * scale, y + 1 * scale, 4 * scale, 5 * scale);
+    targetCtx.fillRect(x + bodyWidth / 2 - 1 * scale, y + 1 * scale, 4 * scale, 5 * scale);
+
+    // 胸の青い宝石（紋章）
+    targetCtx.fillStyle = '#00f3ff';
+    targetCtx.beginPath();
+    targetCtx.arc(x, y + 5 * scale, 2.5 * scale, 0, Math.PI * 2);
+    targetCtx.fill();
+
+    // ベルト (ゴールド)
     targetCtx.fillStyle = '#ffd700';
     targetCtx.fillRect(x - bodyWidth / 2, y + 10 * scale, bodyWidth, 2 * scale);
 
-    // 脚 (青いズボン)
-    targetCtx.fillStyle = '#1e88e5';
+    // 脚 (濃い青のグリーブ/脚甲)
+    targetCtx.fillStyle = '#1565c0';
     targetCtx.fillRect(x - bodyWidth / 2 + 1 * scale, y + 14 * scale, legWidth, legHeight);
     targetCtx.fillRect(x + bodyWidth / 2 - 6 * scale, y + 14 * scale, legWidth, legHeight);
 
-    // 頭部
+    // --- 頭部（Base64アイコン） ---
     const headRadius = 9 * scale;
     const headY = y - 4 * scale;
 
@@ -380,6 +395,10 @@
       targetCtx.clip();
       targetCtx.drawImage(heroData.img, x - headRadius, headY - headRadius, headRadius * 2, headRadius * 2);
       targetCtx.restore();
+
+      // 金の金冠（サークレット）を頭の上に載せる
+      targetCtx.fillStyle = '#ffd700';
+      targetCtx.fillRect(x - 6 * scale, headY - headRadius - 1 * scale, 12 * scale, 3 * scale);
     } else {
       targetCtx.fillStyle = '#ffcc80';
       targetCtx.beginPath();
@@ -387,7 +406,6 @@
       targetCtx.fill();
     }
   }
-
   // クオリティアップした障害物描画
   function drawTileDetails(type, screenX, screenY) {
     if (type === 7) { // 木（リアルな陰影）
